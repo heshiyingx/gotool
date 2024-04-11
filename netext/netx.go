@@ -1,4 +1,4 @@
-package netx
+package netext
 
 import (
 	"fmt"
