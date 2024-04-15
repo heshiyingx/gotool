@@ -1,4 +1,4 @@
-package gozeroext
+package zaplog
 
 import (
 	"fmt"
