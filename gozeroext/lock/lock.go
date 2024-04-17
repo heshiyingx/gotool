@@ -6,7 +6,7 @@ import (
 )
 
 func GetLock(ctx context.Context, rds *redis.Redis, key string, ttlSec int) *redis.RedisLock {
-	lock := redis.NewRedisLock(rds, "test")
+	lock := redis.NewRedisLock(rds, key)
 	lock.SetExpire(ttlSec)
 	return lock
 }
