@@ -61,3 +61,6 @@ func StartServer(s *gin.Engine, c rest.RestConf) {
 	}
 	log.Println("Server exiting")
 }
+func Stop() {
+	_ = logx.Close()
+}
