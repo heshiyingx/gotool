@@ -1,6 +1,7 @@
 package httpext
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/go-resty/resty/v2"
 	"sync"
@@ -12,7 +13,7 @@ var clientPool = sync.Pool{
 	},
 }
 
-func Get[T any](url string, param map[string]string, header map[string]string) (T, error) {
+func Get[T any](ctx context.Context, url string, param map[string]string, header map[string]string) (T, error) {
 	client := clientPool.Get().(*resty.Client)
 	defer clientPool.Put(client)
 	var result T
@@ -27,7 +28,7 @@ func Get[T any](url string, param map[string]string, header map[string]string) (
 	return result, nil
 }
 
-func POST[T any](url string, param map[string]interface{}, header map[string]string) (T, error) {
+func POST[T any](ctx context.Context, url string, param map[string]interface{}, header map[string]string) (T, error) {
 	client := clientPool.Get().(*resty.Client)
 	defer clientPool.Put(client)
 	var result T
