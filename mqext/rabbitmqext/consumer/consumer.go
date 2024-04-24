@@ -10,15 +10,14 @@ import (
 //type ConsumeFunc func(msg amqp.Delivery) error
 
 var (
-	simpleConfig = SimpleConfig{}
+	//simpleConfig = SimpleConfig{}
 	// conn *amqp.Connection
 	simpleProducer *simple.Consumer
 )
 
 type SimpleConfig struct {
-	PrefetchCount int
-	Url           string
-	VHost         string
+	Url   string
+	VHost string
 }
 
 func MustSampleConsumeWithQName(ctx context.Context, sc SimpleConfig, qName string, f simple.ConsumeFunc) error {
@@ -29,7 +28,7 @@ func MustSampleConsumeWithQName(ctx context.Context, sc SimpleConfig, qName stri
 	if err != nil {
 		log.Fatalf("consumer: error in dial: %s", err)
 	}
-	consumer, err := simple.NewConsume(conn, sc.PrefetchCount)
+	consumer, err := simple.NewConsume(conn)
 	if err != nil {
 		return err
 	}

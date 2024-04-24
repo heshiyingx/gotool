@@ -9,195 +9,112 @@ import (
 )
 
 type Producer struct {
-	Conn    *amqp.Connection
-	Channel *amqp.Channel
+	conn    *amqp.Connection
+	channel *amqp.Channel
+	cfg     *ProducerConfig
+}
+type ProducerConfig struct {
+	Durable       bool
+	AutoDelete    bool // 当最后一个消费者断开连接之后，队列是否自动删除
+	Exclusive     bool
+	NoWait        bool
+	args          amqp.Table
+	AppId         string
+	DeliveryMode  uint8
+	qName         string
+	Mandatory     bool // 如果为true，当消息无法路由到队列时，会通过basic.return方法将消息返回给生产者,如果mandatory参数为false，那么服务器会直接丢弃无法路由的消息。
+	Immediate     bool // 如果为true，当消息无法路由到队列时，会通过basic.return方法将消息返回给生产者,如果immediate参数为false，那么服务器会将消息存储在队列中，等待消费者来消费
+	WaitToConfirm bool
 }
 
 var (
 	PublishingTimeoutERR = errors.New("publishing timeout")
 )
 
+type Option func(*ProducerConfig)
+
 type ProducerResultFunc func(msgID string)
 
-//	func NewProducer(conn *amqp.Connection, exchange string, qNames []string) (*Producer, error) {
-//		ch, err := conn.Channel()
-//		if err != nil {
-//			return nil, err
-//		}
-//		if err = ch.ExchangeDeclare(
-//			exchange, // name
-//			"fanout", // type
-//			true,     // durable
-//			false,    // auto-delete
-//			false,    // internal
-//			false,    // noWait
-//			nil,      // arguments
-//		); err != nil {
-//			return nil, err
-//		}
-//		for _, qName := range qNames {
-//			_, err = ch.QueueDeclare(
-//				qName, // name of the queue
-//				true,  // 是否持久化
-//				false, // 是否自动删除
-//				false, // 是否排他,true:可以有多个消费者
-//				false, // no-wait,true:不等待服务器的响应,如果noWait参数为false，那么RabbitMQ服务器在创建队列后会向客户端发送一个确认消息。客户端会等待这个确认消息，然后再继续执行后续的操作。这种方式可以确保队列已经成功创建，但是会增加一些延迟。
-//				nil,   // arguments
-//			)
-//			if err != nil {
-//				return nil, err
-//			}
-//			if err = ch.QueueBind(qName, "", exchange, false, nil); err != nil {
-//				return nil, err
-//			}
-//			if err = ch.Confirm(false); err != nil {
-//				return nil, err
-//			}
-//		}
-//
-//		return &Producer{
-//			Conn:    conn,
-//			Channel: ch,
-//		}, nil
-//	}
-//
-//	func (p *Producer) SimpleConvertAndSend(ctx context.Context, exchange, qName string, message string) error {
-//		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-//		defer cancel()
-//		err := p.Channel.PublishWithContext(ctx,
-//			exchange, // exchange
-//			qName,    // routing key
-//			false,    // mandatory参数决定了当消息无法路由到任何队列时，服务器应该如何处理。如果mandatory参数为true，那么服务器会将无法路由的消息返回给生产者。如果mandatory参数为false，那么服务器会直接丢弃无法路由的消息。
-//			false,    // immediate参数决定了当消息路由到队列，但是队列中没有消费者时，服务器应该如何处理。如果immediate参数为true，那么服务器会将这种消息返回给生产者。如果immediate参数为false，那么服务器会将消息存储在队列中，等待消费者来消费
-//			amqp.Publishing{
-//				ContentType: "text/plain",
-//				Body:        []byte(message),
-//			})
-//
-//		return err
-//	}
-//
-//	func (p *Producer) PublishWithContext(ctx context.Context, exchange, key string, mandatory, immediate bool, message string) (string, error) {
-//		timeoutCtx, cancelFunc := context.WithTimeout(ctx, time.Second*200)
-//		defer cancelFunc()
-//		confirmation, err := p.Channel.PublishWithDeferredConfirmWithContext(
-//			timeoutCtx,
-//			exchange,  // exchange
-//			key,       // routing key
-//			mandatory, // mandatory参数决定了当消息无法路由到任何队列时，服务器应该如何处理。如果mandatory参数为true，那么服务器会将无法路由的消息返回给生产者。如果mandatory参数为false，那么服务器会直接丢弃无法路由的消息。
-//			immediate, // immediate参数决定了当消息路由到队列，但是队列中没有消费者时，服务器应该如何处理。如果immediate参数为true，那么服务器会将这种消息返回给生产者。如果immediate参数为false，那么服务器会将消息存储在队列中，等待消费者来消费
-//			amqp.Publishing{
-//				Headers:         amqp.Table{},
-//				ContentType:     "text/plain",
-//				ContentEncoding: "",
-//				DeliveryMode:    amqp.Persistent,
-//				Priority:        0,
-//				AppId:           "sequential-producer",
-//				Body:            []byte(message),
-//			})
-//		if err != nil {
-//			return "", err
-//		}
-//		select {
-//		case <-confirmation.Done():
-//		case <-timeoutCtx.Done():
-//			return "", PublishingTimeoutERR
-//		}
-//		if confirmation.Acked() {
-//			return strconv.FormatUint(confirmation.DeliveryTag, 10), nil
-//		}
-//		return "", nil
-//	}
 func (p *Producer) Close() {
-	p.Channel.Close()
-	p.Conn.Close()
+	p.channel.Close()
+	p.conn.Close()
 
 }
 
-func NewProducer(conn *amqp.Connection, qNames []string) (*Producer, error) {
+func NewProducer(conn *amqp.Connection, qName string, opts ...Option) (*Producer, error) {
 	ch, err := conn.Channel()
 	if err != nil {
 		return nil, err
 	}
-	//if err = ch.ExchangeDeclare(
-	//	exchange, // name
-	//	"fanout", // type
-	//	true,     // durable
-	//	false,    // auto-delete
-	//	false,    // internal
-	//	false,    // noWait
-	//	nil,      // arguments
-	//); err != nil {
-	//	return nil, err
-	//}
-	for _, qName := range qNames {
-		_, err = ch.QueueDeclare(
-			qName, // name of the queue
-			true,  // 是否持久化
-			false, // 是否自动删除
-			false, // 是否排他,true:可以有多个消费者
-			false, // no-wait,true:不等待服务器的响应,如果noWait参数为false，那么RabbitMQ服务器在创建队列后会向客户端发送一个确认消息。客户端会等待这个确认消息，然后再继续执行后续的操作。这种方式可以确保队列已经成功创建，但是会增加一些延迟。
-			nil,   // arguments
-		)
-		if err != nil {
-			return nil, err
-		}
-		//if err = ch.QueueBind(qName, "", exchange, false, nil); err != nil {
-		//	return nil, err
-		//}
+	cfg := &ProducerConfig{
+		Durable:       true,
+		AutoDelete:    false,
+		Exclusive:     false,
+		NoWait:        false,
+		WaitToConfirm: true,
+		args:          nil,
+		AppId:         "",
+		DeliveryMode:  amqp.Persistent,
+		qName:         qName,
+	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	_, err = ch.QueueDeclare(
+		qName,          // name of the queue
+		cfg.Durable,    // 是否持久化
+		cfg.AutoDelete, // 是否自动删除
+		cfg.Exclusive,  // 是否排他
+		cfg.NoWait,     // no-wait,true:不等待服务器的响应,如果noWait参数为false，那么RabbitMQ服务器在创建队列后会向客户端发送一个确认消息。客户端会等待这个确认消息，然后再继续执行后续的操作。这种方式可以确保队列已经成功创建，但是会增加一些延迟。
+		cfg.args,       // arguments
+	)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.WaitToConfirm {
 		if err = ch.Confirm(false); err != nil {
 			return nil, err
 		}
 	}
 
 	return &Producer{
-		Conn:    conn,
-		Channel: ch,
+		conn:    conn,
+		channel: ch,
+		cfg:     cfg,
 	}, nil
 }
-func (p *Producer) SimpleConvertAndSend(ctx context.Context, qName string, message string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	err := p.Channel.PublishWithContext(ctx,
-		"",    // exchange
-		qName, // routing key
-		false, // mandatory参数决定了当消息无法路由到任何队列时，服务器应该如何处理。如果mandatory参数为true，那么服务器会将无法路由的消息返回给生产者。如果mandatory参数为false，那么服务器会直接丢弃无法路由的消息。
-		false, // immediate参数决定了当消息路由到队列，但是队列中没有消费者时，服务器应该如何处理。如果immediate参数为true，那么服务器会将这种消息返回给生产者。如果immediate参数为false，那么服务器会将消息存储在队列中，等待消费者来消费
-		amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        []byte(message),
-		})
-
-	return err
-}
-func (p *Producer) PublishWithContext(ctx context.Context, key string, mandatory, immediate bool, message string) (string, error) {
-	timeoutCtx, cancelFunc := context.WithTimeout(ctx, time.Second*200)
+func (p *Producer) PublishWithContext(ctx context.Context, message []byte) (string, error) {
+	timeoutCtx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	confirmation, err := p.Channel.PublishWithDeferredConfirmWithContext(
+	confirmation, err := p.channel.PublishWithDeferredConfirmWithContext(
 		timeoutCtx,
-		"",        // exchange
-		key,       // routing key
-		mandatory, // mandatory参数决定了当消息无法路由到任何队列时，服务器应该如何处理。如果mandatory参数为true，那么服务器会将无法路由的消息返回给生产者。如果mandatory参数为false，那么服务器会直接丢弃无法路由的消息。
-		immediate, // immediate参数决定了当消息路由到队列，但是队列中没有消费者时，服务器应该如何处理。如果immediate参数为true，那么服务器会将这种消息返回给生产者。如果immediate参数为false，那么服务器会将消息存储在队列中，等待消费者来消费
+		"",              // exchange
+		p.cfg.qName,     // routing key
+		p.cfg.Mandatory, // mandatory参数决定了当消息无法路由到任何队列时，服务器应该如何处理。如果mandatory参数为true，那么服务器会将无法路由的消息返回给生产者。如果mandatory参数为false，那么服务器会直接丢弃无法路由的消息。
+		p.cfg.Immediate, // immediate参数决定了当消息路由到队列，但是队列中没有消费者时，服务器应该如何处理。如果immediate参数为true，那么服务器会将这种消息返回给生产者。如果immediate参数为false，那么服务器会将消息存储在队列中，等待消费者来消费
 		amqp.Publishing{
 			Headers:         amqp.Table{},
 			ContentType:     "text/plain",
 			ContentEncoding: "",
-			DeliveryMode:    amqp.Persistent,
+			DeliveryMode:    p.cfg.DeliveryMode,
 			Priority:        0,
-			AppId:           "sequential-producer",
-			Body:            []byte(message),
+			AppId:           p.cfg.AppId,
+			Body:            message,
 		})
 	if err != nil {
 		return "", err
 	}
-	select {
-	case <-confirmation.Done():
-	case <-timeoutCtx.Done():
-		return "", PublishingTimeoutERR
+	if p.cfg.WaitToConfirm {
+		select {
+		case <-confirmation.Done():
+		case <-timeoutCtx.Done():
+			return "", PublishingTimeoutERR
+		}
+		if confirmation.Acked() {
+			return strconv.FormatUint(confirmation.DeliveryTag, 10), nil
+		}
 	}
-	if confirmation.Acked() {
-		return strconv.FormatUint(confirmation.DeliveryTag, 10), nil
-	}
+
 	return "", nil
 }

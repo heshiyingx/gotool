@@ -2,18 +2,17 @@ package producer
 
 import (
 	"context"
-	"github.com/heshiyingx/gotool/mqext/rabbitmqext/producer/config"
 	"github.com/heshiyingx/gotool/mqext/rabbitmqext/producer/simple"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"log"
 )
 
 var (
-	producerConfig = config.Config{}
-	//conn           *amqp.Connection
+// producerConfig = config.Config{}
+// conn           *amqp.Connection
 )
 
-type Option func(*config.Config)
+//type Option func(*config.Config)
 
 var simpleProducer *simple.Producer
 
@@ -21,7 +20,7 @@ func Close() {
 	simpleProducer.Close()
 
 }
-func MustInit(url string, vHost string, exchange string, qNames []string) {
+func MustInitSimple(url string, vHost string, qName string, opts ...simple.Option) {
 	if vHost == "" {
 		vHost = "/"
 	}
@@ -37,7 +36,7 @@ func MustInit(url string, vHost string, exchange string, qNames []string) {
 		log.Fatalf("producer: error in dial: %s", err)
 	}
 	if simpleProducer == nil {
-		p, err := simple.NewProducer(conn, qNames)
+		p, err := simple.NewProducer(conn, qName, opts...)
 		if err != nil {
 			log.Fatalf("producer: error in NewProducer: %s", err)
 		}
@@ -46,9 +45,9 @@ func MustInit(url string, vHost string, exchange string, qNames []string) {
 	}
 }
 
-func SimpleMustConvertAndSend(ctx context.Context, exchange, qName string, message string) (string, error) {
+func SimpleMustConvertAndSend(ctx context.Context, message []byte) (string, error) {
 	// 需要再rabbitmq中把队列创建出来
-	msgMQID, err := simpleProducer.PublishWithContext(ctx, qName, true, false, message)
+	msgMQID, err := simpleProducer.PublishWithContext(ctx, message)
 	if err != nil {
 		return "", err
 	}
