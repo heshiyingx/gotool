@@ -2,8 +2,10 @@ package simple
 
 import (
 	"context"
-	_const "github.com/heshiyingx/gotool/mqext/rabbitmqext/const"
+	"errors"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"log"
+	"time"
 )
 
 type Consumer struct {
@@ -24,20 +26,28 @@ type ConsumerConfig struct {
 type Option func(*ConsumerConfig)
 type ConsumeFunc func(msg amqp.Delivery) error
 
+// ConsumeBatchFunc 批量消费,返回成功的消息tags和失败的消息tags
+type ConsumeBatchFunc func(msgs []amqp.Delivery) ([]uint64, []uint64)
+type AckFunc func(msg amqp.Delivery, err error) error
+
 func NewConsume(conn *amqp.Connection, opts ...Option) (*Consumer, error) {
 
 	config := &ConsumerConfig{
-		//PrefetchCount: prefetchCount,
+		Tag:           "",
+		PrefetchCount: 0,
+		PrefetchSize:  0,
+		AutoAsk:       false,
+		Exclusive:     false,
+		NoLocal:       false,
+		NoWait:        false,
+		Args:          nil,
 	}
 	for _, opt := range opts {
 		opt(config)
 	}
-	if config.PrefetchCount == 0 {
-		config.PrefetchCount = 10
-	}
-	if config.Tag == "" {
-		return nil, _const.RabbitConsumerConfigErr.Wrap("tag is empty")
-	}
+	//if config.Tag == "" {
+	//	return nil, _const.RabbitConsumerConfigErr.Wrap("tag is empty")
+	//}
 	consumer := &Consumer{
 		conn: conn,
 		cfg:  config,
@@ -57,7 +67,7 @@ func (c *Consumer) close() {
 	c.channel.Close()
 	c.conn.Close()
 }
-func (c *Consumer) SampleConsumeWithQName(ctx context.Context, qName string, f ConsumeFunc) error {
+func (c *Consumer) SampleConsumeWithFinishAckQName(ctx context.Context, qName string, f ConsumeFunc) error {
 	defer c.close()
 
 	deliveries, err := c.channel.Consume(
@@ -75,13 +85,108 @@ func (c *Consumer) SampleConsumeWithQName(ctx context.Context, qName string, f C
 	for delivery := range deliveries {
 		handleErr := f(delivery)
 		if handleErr != nil {
-			c.channel.Nack(delivery.DeliveryTag, false, true)
+			if !c.cfg.AutoAsk {
+				c.channel.Nack(delivery.DeliveryTag, false, true)
+			}
 			continue
 		}
+		if !c.cfg.AutoAsk {
+			c.channel.Ack(delivery.DeliveryTag, false)
+		}
 
-		c.channel.Ack(delivery.DeliveryTag, false)
 	}
 
 	return nil
+}
+func (c *Consumer) SampleConsumeWithQName(ctx context.Context, qName string, f ConsumeFunc) error {
+	defer c.close()
 
+	deliveries, err := c.channel.Consume(
+		qName,           // name
+		c.cfg.Tag,       // consumerTag,
+		c.cfg.AutoAsk,   // autoAck
+		c.cfg.Exclusive, // exclusive
+		c.cfg.NoLocal,   // noLocal
+		c.cfg.NoWait,    // noWait
+		c.cfg.Args,      // arguments
+	)
+	if err != nil {
+		return err
+	}
+	for delivery := range deliveries {
+		_ = f(delivery)
+	}
+
+	return nil
+}
+func (c *Consumer) SampleBatchConsumeWithQName(ctx context.Context, qName string, during time.Duration, batchNum int, f ConsumeBatchFunc) error {
+	defer c.close()
+	err := c.channel.Qos(batchNum, 0, false)
+	if err != nil {
+		return err
+	}
+	deliveries, err := c.channel.Consume(
+		qName,           // name
+		c.cfg.Tag,       // consumerTag,
+		c.cfg.AutoAsk,   // autoAck
+		c.cfg.Exclusive, // exclusive
+		c.cfg.NoLocal,   // noLocal
+		c.cfg.NoWait,    // noWait
+		c.cfg.Args,      // arguments
+	)
+	if err != nil {
+		return err
+	}
+	ticker := time.NewTicker(during)
+
+	msgs := make([]amqp.Delivery, 0, batchNum)
+	for {
+		select {
+		case msg, ok := <-deliveries:
+			if !ok {
+				return errors.New("channel closed")
+			}
+			msgs = append(msgs, msg)
+			if len(msgs) >= batchNum {
+				successTags, failTags := f(msgs)
+				if len(successTags)+len(failTags) != len(msgs) {
+					log.Fatal("successTags and failTags length not equal msgs length")
+				}
+				for _, tag := range successTags {
+					c.channel.Ack(tag, false)
+				}
+				for _, tag := range failTags {
+					c.channel.Nack(tag, false, true)
+				}
+				msgs = msgs[:0]
+			}
+		case <-ticker.C:
+			if len(msgs) > 0 {
+				successTags, failTags := f(msgs)
+				if len(successTags)+len(failTags) != len(msgs) {
+					log.Fatal("successTags and failTags length not equal msgs length")
+				}
+				for _, tag := range successTags {
+					c.channel.Ack(tag, false)
+				}
+				for _, tag := range failTags {
+					c.channel.Nack(tag, false, true)
+				}
+				msgs = msgs[:0]
+			}
+
+		}
+	}
+}
+func (c *Consumer) Ack(deliveryTag uint64, success bool, multipe bool, requeue bool) {
+	if success {
+		log.Println(deliveryTag)
+		err := c.channel.Ack(deliveryTag, multipe)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+	} else {
+		c.channel.Nack(deliveryTag, multipe, requeue)
+	}
 }

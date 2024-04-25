@@ -20,7 +20,7 @@ type SimpleConfig struct {
 	VHost string
 }
 
-func MustSampleConsumeWithQName(ctx context.Context, sc SimpleConfig, qName string, f simple.ConsumeFunc) error {
+func MustSampleConsumeWithQName(ctx context.Context, sc SimpleConfig, qName string, f simple.ConsumeFunc, opts ...simple.Option) error {
 	config := amqp.Config{Properties: amqp.NewConnectionProperties(), Vhost: sc.VHost}
 	config.Properties.SetClientConnectionName("sample-consumer")
 
@@ -28,7 +28,25 @@ func MustSampleConsumeWithQName(ctx context.Context, sc SimpleConfig, qName stri
 	if err != nil {
 		log.Fatalf("consumer: error in dial: %s", err)
 	}
-	consumer, err := simple.NewConsume(conn)
+	consumer, err := simple.NewConsume(conn, opts...)
+	if err != nil {
+		return err
+	}
+	err = consumer.SampleConsumeWithQName(ctx, qName, f)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func MustSampleConsumeAckWithQName(ctx context.Context, sc SimpleConfig, qName string, f simple.ConsumeFunc, opts ...simple.Option) error {
+	config := amqp.Config{Properties: amqp.NewConnectionProperties(), Vhost: sc.VHost}
+	config.Properties.SetClientConnectionName("sample-consumer")
+
+	conn, err := amqp.DialConfig(sc.Url, config)
+	if err != nil {
+		log.Fatalf("consumer: error in dial: %s", err)
+	}
+	consumer, err := simple.NewConsume(conn, opts...)
 	if err != nil {
 		return err
 	}

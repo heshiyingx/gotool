@@ -3,7 +3,9 @@ package fanout
 import (
 	"context"
 	"errors"
+	"github.com/heshiyingx/gotool/mqext/rabbitmqext/producer/simple"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"log"
 	"strconv"
 	"time"
 )
@@ -44,6 +46,39 @@ type Option func(*ProducerConfig)
 
 type ProducerResultFunc func(msgID string)
 
+func MustInitProducer(url string, vHost string, qName string, opts ...simple.Option) *simple.Producer {
+	p, err := InitProducer(url, vHost, qName, opts...)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return p
+
+}
+
+func InitProducer(url string, vHost string, qName string, opts ...simple.Option) (*simple.Producer, error) {
+	if vHost == "" {
+		vHost = "/"
+	}
+	config := amqp.Config{
+		Vhost:      vHost,
+		Properties: amqp.NewConnectionProperties(),
+	}
+	config.Properties.SetClientConnectionName("sendMsg")
+
+	//Log.Printf("producer: dialing %s", url)
+	conn, err := amqp.DialConfig(url, config)
+	if err != nil {
+		log.Printf("producer: error in dial: %s", err)
+		return nil, err
+	}
+	p, err := simple.NewProducer(conn, qName, opts...)
+	if err != nil {
+		log.Printf("producer: error in NewProducer: %s", err)
+		return nil, err
+	}
+
+	return p, nil
+}
 func (p *Producer) Close() {
 	p.channel.Close()
 	p.conn.Close()
@@ -52,6 +87,7 @@ func (p *Producer) Close() {
 func NewProducer(conn *amqp.Connection, exChangeName string, qNames []string, opts ...Option) (*Producer, error) {
 	ch, err := conn.Channel()
 	if err != nil {
+		log.Printf("producer: error in channel: %s", err)
 		return nil, err
 	}
 	if exChangeName == "" {
