@@ -3,6 +3,7 @@ package simple
 import (
 	"context"
 	"errors"
+	_const "github.com/heshiyingx/gotool/mqext/rabbitmqext/const"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"log"
 	"time"
@@ -22,6 +23,7 @@ type ConsumerConfig struct {
 	NoLocal       bool // 换句话说，如果你在一个连接上既发布消息又消费消息，设置 NoLocal 为 true 可以防止消费者接收到自己发布的消息。
 	NoWait        bool // 如果noWait参数为false，那么RabbitMQ服务器在创建队列后会向客户端发送一个确认消息。客户端会等待这个确认消息，然后再继续执行后续的操作。这种方式可以确保队列已经成功创建，但是会增加一些延迟。
 	Args          amqp.Table
+	qName         string
 }
 type Option func(*ConsumerConfig)
 type ConsumeFunc func(msg amqp.Delivery) error
@@ -30,7 +32,21 @@ type ConsumeFunc func(msg amqp.Delivery) error
 type ConsumeBatchFunc func(msgs []amqp.Delivery) ([]uint64, []uint64)
 type AckFunc func(msg amqp.Delivery, err error) error
 
-func NewConsume(conn *amqp.Connection, opts ...Option) (*Consumer, error) {
+func MustNewConsume(url string, vHost string, qName string, opts ...Option) *Consumer {
+	config := amqp.Config{Properties: amqp.NewConnectionProperties(), Vhost: vHost}
+	config.Properties.SetClientConnectionName("sample-consumer")
+
+	conn, err := amqp.DialConfig(url, config)
+	if err != nil {
+		log.Fatalf("consumer: error in dial: %s", err)
+	}
+	consumer, err := NewConsume(conn, qName, opts...)
+	if err != nil {
+		log.Fatalf("consumer: error in dial: %s", err)
+	}
+	return consumer
+}
+func NewConsume(conn *amqp.Connection, qName string, opts ...Option) (*Consumer, error) {
 
 	config := &ConsumerConfig{
 		Tag:           "",
@@ -41,13 +57,14 @@ func NewConsume(conn *amqp.Connection, opts ...Option) (*Consumer, error) {
 		NoLocal:       false,
 		NoWait:        false,
 		Args:          nil,
+		qName:         qName,
 	}
 	for _, opt := range opts {
 		opt(config)
 	}
-	//if config.Tag == "" {
-	//	return nil, _const.RabbitConsumerConfigErr.Wrap("tag is empty")
-	//}
+	if config.Tag == "" {
+		return nil, _const.RabbitConsumerConfigErr.Wrap("tag is empty")
+	}
 	consumer := &Consumer{
 		conn: conn,
 		cfg:  config,
@@ -67,11 +84,11 @@ func (c *Consumer) close() {
 	c.channel.Close()
 	c.conn.Close()
 }
-func (c *Consumer) SampleConsumeWithFinishAckQName(ctx context.Context, qName string, f ConsumeFunc) error {
+func (c *Consumer) SampleConsumeWithFinishAckQName(ctx context.Context, f ConsumeFunc) error {
 	defer c.close()
 
 	deliveries, err := c.channel.Consume(
-		qName,           // name
+		c.cfg.qName,     // name
 		c.cfg.Tag,       // consumerTag,
 		c.cfg.AutoAsk,   // autoAck
 		c.cfg.Exclusive, // exclusive
@@ -98,11 +115,11 @@ func (c *Consumer) SampleConsumeWithFinishAckQName(ctx context.Context, qName st
 
 	return nil
 }
-func (c *Consumer) SampleConsumeWithQName(ctx context.Context, qName string, f ConsumeFunc) error {
+func (c *Consumer) SampleConsumeWithQName(ctx context.Context, f ConsumeFunc) error {
 	defer c.close()
 
 	deliveries, err := c.channel.Consume(
-		qName,           // name
+		c.cfg.qName,     // name
 		c.cfg.Tag,       // consumerTag,
 		c.cfg.AutoAsk,   // autoAck
 		c.cfg.Exclusive, // exclusive
@@ -119,14 +136,14 @@ func (c *Consumer) SampleConsumeWithQName(ctx context.Context, qName string, f C
 
 	return nil
 }
-func (c *Consumer) SampleBatchConsumeWithQName(ctx context.Context, qName string, during time.Duration, batchNum int, f ConsumeBatchFunc) error {
+func (c *Consumer) SampleBatchConsumeWithQName(ctx context.Context, during time.Duration, batchNum int, f ConsumeBatchFunc) error {
 	defer c.close()
 	err := c.channel.Qos(batchNum, 0, false)
 	if err != nil {
 		return err
 	}
 	deliveries, err := c.channel.Consume(
-		qName,           // name
+		c.cfg.qName,     // name
 		c.cfg.Tag,       // consumerTag,
 		c.cfg.AutoAsk,   // autoAck
 		c.cfg.Exclusive, // exclusive

@@ -28,11 +28,11 @@ func MustSampleConsumeWithQName(ctx context.Context, sc SimpleConfig, qName stri
 	if err != nil {
 		log.Fatalf("consumer: error in dial: %s", err)
 	}
-	consumer, err := simple.NewConsume(conn, opts...)
+	consumer, err := simple.NewConsume(conn, qName, opts...)
 	if err != nil {
 		return err
 	}
-	err = consumer.SampleConsumeWithQName(ctx, qName, f)
+	err = consumer.SampleConsumeWithQName(ctx, f)
 	if err != nil {
 		return err
 	}
@@ -46,11 +46,11 @@ func MustSampleConsumeAckWithQName(ctx context.Context, sc SimpleConfig, qName s
 	if err != nil {
 		log.Fatalf("consumer: error in dial: %s", err)
 	}
-	consumer, err := simple.NewConsume(conn, opts...)
+	consumer, err := simple.NewConsume(conn, qName, opts...)
 	if err != nil {
 		return err
 	}
-	err = consumer.SampleConsumeWithQName(ctx, qName, f)
+	err = consumer.SampleConsumeWithQName(ctx, f)
 	if err != nil {
 		return err
 	}
