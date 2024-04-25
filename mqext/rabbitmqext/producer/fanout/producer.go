@@ -3,7 +3,6 @@ package fanout
 import (
 	"context"
 	"errors"
-	"github.com/heshiyingx/gotool/mqext/rabbitmqext/producer/simple"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"log"
 	"strconv"
@@ -46,8 +45,8 @@ type Option func(*ProducerConfig)
 
 type ProducerResultFunc func(msgID string)
 
-func MustInitProducer(url string, vHost string, qName string, opts ...simple.Option) *simple.Producer {
-	p, err := InitProducer(url, vHost, qName, opts...)
+func MustInitProducer(url string, vHost string, exChangeName string, qNames []string, opts ...Option) *Producer {
+	p, err := InitProducer(url, vHost, exChangeName, qNames, opts...)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -55,7 +54,7 @@ func MustInitProducer(url string, vHost string, qName string, opts ...simple.Opt
 
 }
 
-func InitProducer(url string, vHost string, qName string, opts ...simple.Option) (*simple.Producer, error) {
+func InitProducer(url string, vHost string, exChangeName string, qNames []string, opts ...Option) (*Producer, error) {
 	if vHost == "" {
 		vHost = "/"
 	}
@@ -71,7 +70,7 @@ func InitProducer(url string, vHost string, qName string, opts ...simple.Option)
 		log.Printf("producer: error in dial: %s", err)
 		return nil, err
 	}
-	p, err := simple.NewProducer(conn, qName, opts...)
+	p, err := NewProducer(conn, exChangeName, qNames, opts...)
 	if err != nil {
 		log.Printf("producer: error in NewProducer: %s", err)
 		return nil, err
