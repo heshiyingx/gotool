@@ -43,7 +43,7 @@ func POST[T any](ctx context.Context, url string, param map[string]interface{}, 
 	}
 	return result, nil
 }
-func POSTXml[T any](ctx context.Context, url string, param map[string]interface{}, header map[string]string) (T, error) {
+func POSTXml[T any](ctx context.Context, url string, param interface{}, header map[string]string) (T, error) {
 	client := clientPool.Get().(*resty.Client)
 	defer clientPool.Put(client)
 	var result T
