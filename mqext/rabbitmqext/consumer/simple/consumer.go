@@ -3,7 +3,6 @@ package simple
 import (
 	"context"
 	"errors"
-	_const "github.com/heshiyingx/gotool/mqext/rabbitmqext/const"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"log"
 	"time"
@@ -62,9 +61,9 @@ func NewConsume(conn *amqp.Connection, qName string, opts ...Option) (*Consumer,
 	for _, opt := range opts {
 		opt(config)
 	}
-	if config.Tag == "" {
-		return nil, _const.RabbitConsumerConfigErr.Wrap("tag is empty")
-	}
+	//if config.Tag == "" {
+	//	return nil, _const.RabbitConsumerConfigErr.Wrap("tag is empty")
+	//}
 	consumer := &Consumer{
 		conn: conn,
 		cfg:  config,

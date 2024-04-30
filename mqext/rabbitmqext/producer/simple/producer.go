@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"log"
 	"strconv"
 	"time"
 )
@@ -40,7 +41,28 @@ func (p *Producer) Close() {
 	p.conn.Close()
 
 }
+func MustNewProducer(url string, vHost string, qName string, opts ...Option) *Producer {
+	if vHost == "" {
+		vHost = "/"
+	}
+	config := amqp.Config{
+		Vhost:      vHost,
+		Properties: amqp.NewConnectionProperties(),
+	}
+	config.Properties.SetClientConnectionName("producer-with-confirms")
 
+	//Log.Printf("producer: dialing %s", url)
+	conn, err := amqp.DialConfig(url, config)
+	if err != nil {
+		log.Fatalf("producer: error in dial: %s", err)
+	}
+	p, err := NewProducer(conn, qName, opts...)
+	if err != nil {
+		log.Fatalf("producer: error in NewProducer: %s", err)
+	}
+	return p
+
+}
 func NewProducer(conn *amqp.Connection, qName string, opts ...Option) (*Producer, error) {
 	ch, err := conn.Channel()
 	if err != nil {
