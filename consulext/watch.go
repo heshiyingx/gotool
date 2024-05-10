@@ -148,7 +148,7 @@ func RegisterAllServiceWatcher(opts map[string]string, consulAddr string, change
 }
 
 // RegisterServiceWatcher 监控指定的service
-func RegisterServiceWatcher(serviceName string, address string, changeFunc ServiceChangeFunc) error {
+func RegisterServiceWatcher(serviceName string, address string, token string, changeFunc ServiceChangeFunc) error {
 	// watch endpoint 的请求参数，具体见官方文档：https://www.consul.io/docs/dynamic-app-config/watches#service
 	wp, err := watch.Parse(map[string]interface{}{
 		"type":    "service",
@@ -156,6 +156,9 @@ func RegisterServiceWatcher(serviceName string, address string, changeFunc Servi
 	})
 	if err != nil {
 		return err
+	}
+	if token != "" {
+		wp.Token = token
 	}
 
 	// 定义service变化后所执行的程序(函数)handler
