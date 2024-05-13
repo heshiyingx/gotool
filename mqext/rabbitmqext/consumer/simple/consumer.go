@@ -67,7 +67,7 @@ func NewConsume(conn *amqp.Connection, qName string, opts ...Option) (*Consumer,
 	//	return nil, _const.RabbitConsumerConfigErr.Wrap("tag is empty")
 	//}
 	if config.ExchangeName == "" {
-		config.ExchangeName = "/"
+		config.ExchangeName = "default"
 	}
 	consumer := &Consumer{
 		conn: conn,
@@ -78,7 +78,7 @@ func NewConsume(conn *amqp.Connection, qName string, opts ...Option) (*Consumer,
 		return nil, err
 	}
 
-	if config.ExchangeName != "/" {
+	if config.ExchangeName != "default" {
 		if err = channel.ExchangeDeclare(
 			config.ExchangeName, // name of the exchange
 			"direct",            // type
