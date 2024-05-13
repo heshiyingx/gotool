@@ -3,6 +3,7 @@ package simple
 import (
 	"context"
 	"errors"
+	"fmt"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"log"
 	"time"
@@ -23,6 +24,7 @@ type ConsumerConfig struct {
 	NoWait        bool // 如果noWait参数为false，那么RabbitMQ服务器在创建队列后会向客户端发送一个确认消息。客户端会等待这个确认消息，然后再继续执行后续的操作。这种方式可以确保队列已经成功创建，但是会增加一些延迟。
 	Args          amqp.Table
 	qName         string
+	ExchangeName  string
 }
 type Option func(*ConsumerConfig)
 type ConsumeFunc func(msg amqp.Delivery) error
@@ -64,6 +66,9 @@ func NewConsume(conn *amqp.Connection, qName string, opts ...Option) (*Consumer,
 	//if config.Tag == "" {
 	//	return nil, _const.RabbitConsumerConfigErr.Wrap("tag is empty")
 	//}
+	if config.ExchangeName == "" {
+		config.ExchangeName = "/"
+	}
 	consumer := &Consumer{
 		conn: conn,
 		cfg:  config,
@@ -71,6 +76,20 @@ func NewConsume(conn *amqp.Connection, qName string, opts ...Option) (*Consumer,
 	channel, err := consumer.conn.Channel()
 	if err != nil {
 		return nil, err
+	}
+
+	if config.ExchangeName != "/" {
+		if err = channel.ExchangeDeclare(
+			config.ExchangeName, // name of the exchange
+			"direct",            // type
+			true,                // durable
+			false,               // delete when complete
+			false,               // internal
+			false,               // noWait
+			nil,                 // arguments
+		); err != nil {
+			return nil, fmt.Errorf("Exchange Declare: %s", err)
+		}
 	}
 	queue, err := channel.QueueDeclare(
 		qName, // name of the queue
@@ -83,7 +102,7 @@ func NewConsume(conn *amqp.Connection, qName string, opts ...Option) (*Consumer,
 	if err != nil {
 		return nil, err
 	}
-	err = channel.QueueBind(queue.Name, qName, "", false, nil)
+	err = channel.QueueBind(queue.Name, qName, config.ExchangeName, false, nil)
 	if err != nil {
 		return nil, err
 	}
