@@ -72,6 +72,21 @@ func NewConsume(conn *amqp.Connection, qName string, opts ...Option) (*Consumer,
 	if err != nil {
 		return nil, err
 	}
+	queue, err := channel.QueueDeclare(
+		qName, // name of the queue
+		true,  // durable
+		false, // delete when unused
+		false, // exclusive
+		false, // noWait
+		nil,   // arguments
+	)
+	if err != nil {
+		return nil, err
+	}
+	err = channel.QueueBind(queue.Name, qName, "", false, nil)
+	if err != nil {
+		return nil, err
+	}
 	consumer.channel = channel
 	err = consumer.channel.Qos(config.PrefetchCount, config.PrefetchSize, false)
 	if err != nil {

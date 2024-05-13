@@ -18,7 +18,7 @@ func Get[T any](ctx context.Context, url string, param map[string]string, header
 	client := clientPool.Get().(*resty.Client)
 	defer clientPool.Put(client)
 	var result T
-	response, err := client.R().EnableTrace().SetQueryParams(param).SetHeaders(header).Get(url)
+	response, err := client.R().SetContext(ctx).EnableTrace().SetQueryParams(param).SetHeaders(header).Get(url)
 	if err != nil {
 		return result, err
 	}
@@ -33,7 +33,7 @@ func POST[T any](ctx context.Context, url string, param map[string]interface{}, 
 	client := clientPool.Get().(*resty.Client)
 	defer clientPool.Put(client)
 	var result T
-	response, err := client.R().SetBody(param).SetHeaders(header).Post(url)
+	response, err := client.R().SetContext(ctx).SetBody(param).SetHeaders(header).Post(url)
 	if err != nil {
 		return result, err
 	}
@@ -47,7 +47,7 @@ func POSTXml[T any](ctx context.Context, url string, param interface{}, header m
 	client := clientPool.Get().(*resty.Client)
 	defer clientPool.Put(client)
 	var result T
-	response, err := client.R().SetBody(param).SetHeaders(header).Post(url)
+	response, err := client.R().SetContext(ctx).SetBody(param).SetHeaders(header).Post(url)
 	if err != nil {
 		return result, err
 	}
