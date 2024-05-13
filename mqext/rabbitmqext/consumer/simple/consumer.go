@@ -69,6 +69,7 @@ func NewConsume(conn *amqp.Connection, qName string, opts ...Option) (*Consumer,
 	if config.ExchangeName == "" {
 		config.ExchangeName = "default"
 	}
+
 	consumer := &Consumer{
 		conn: conn,
 		cfg:  config,
@@ -78,7 +79,7 @@ func NewConsume(conn *amqp.Connection, qName string, opts ...Option) (*Consumer,
 		return nil, err
 	}
 
-	if config.ExchangeName != "default" {
+	if config.ExchangeName != "" {
 		if err = channel.ExchangeDeclare(
 			config.ExchangeName, // name of the exchange
 			"direct",            // type
