@@ -1,5 +1,5 @@
 package configext
 
 type MySQLConfigDSN struct {
-	Datasource string `json:"datasource"`
+	Datasource string `json:"datasource,optional"`
 }

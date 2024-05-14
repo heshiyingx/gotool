@@ -1,7 +1,7 @@
 package configext
 
 type MongoConfig struct {
-	Url        string `json:"url"`
-	Db         string `json:"db"`
-	Collection string `json:"collection"`
+	Url        string `json:"url,optional"`
+	Db         string `json:"db,optional"`
+	Collection string `json:"collection,optional"`
 }
