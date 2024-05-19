@@ -3,7 +3,7 @@ module github.com/heshiyingx/gotool
 go 1.21
 
 require (
-	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10
+	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 //  v0.0.0-20210521184019-c5ad59b459ec
 	github.com/gin-gonic/gin v1.9.1
 	github.com/go-playground/validator/v10 v10.14.0
 	github.com/go-resty/resty/v2 v2.12.0
@@ -142,3 +142,5 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/antlr/antlr4/runtime/Go/antlr => github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20210521184019-c5ad59b459ec

@@ -3,5 +3,10 @@ package parser
 import "testing"
 
 func TestParse(t *testing.T) {
-	Parse("/Users/john/study/code/gocode/gotools/dbext/sql/parser/app.sql", "database", true)
+	parse, err := Parse("/Users/john/study/code/gocode/test2/sqld/user.sql", "database", true)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	t.Log(parse)
 }

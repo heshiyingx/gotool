@@ -5,9 +5,9 @@ import (
 	"github.com/heshiyingx/gotool/dbext/ddl-parser/parser"
 	"github.com/heshiyingx/gotool/dbext/sql/converter"
 	"github.com/heshiyingx/gotool/util"
+	collection2 "github.com/heshiyingx/gotool/util/collection"
 	"github.com/heshiyingx/gotool/util/console"
 	stringx "github.com/heshiyingx/gotool/util/stringext"
-	"github.com/zeromicro/go-zero/core/collection"
 	"path/filepath"
 	"strings"
 )
@@ -27,7 +27,7 @@ type (
 
 	// Primary describes a primary key
 	Primary struct {
-		Field
+		Fields        []Field
 		AutoIncrement bool
 	}
 
@@ -61,10 +61,11 @@ func Parse(filename, database string, strict bool) ([]*Table, error) {
 
 	prefix := filepath.Base(filename)
 	var list []*Table
+	primaryIsDefined := false
 	for indexTable, e := range tables {
 		var (
 			primaryColumn    string
-			primaryColumnSet = collection.NewSet()
+			primaryColumnSet = collection2.NewSet[string]()
 			uniqueKeyMap     = make(map[string][]string)
 			// Unused local variable
 			// normalKeyMap     = make(map[string][]string)
@@ -74,7 +75,8 @@ func Parse(filename, database string, strict bool) ([]*Table, error) {
 		for _, column := range columns {
 			if column.Constraint != nil {
 				if column.Constraint.Primary {
-					primaryColumnSet.AddStr(column.Name)
+					primaryIsDefined = true
+					primaryColumnSet.Add(column.Name)
 				}
 
 				if column.Constraint.Unique {
@@ -90,13 +92,19 @@ func Parse(filename, database string, strict bool) ([]*Table, error) {
 		}
 
 		for _, e := range e.Constraints {
-			if len(e.ColumnPrimaryKey) > 1 {
-				return nil, fmt.Errorf("%s: unexpected join primary key", prefix)
+			//if len(e.ColumnPrimaryKey) > 1 {
+			//	return nil, fmt.Errorf("%s: unexpected join primary key", prefix)
+			//}
+			//
+			//if len(e.ColumnPrimaryKey) == 1 {
+			//	primaryColumn = e.ColumnPrimaryKey[0]
+			//	primaryColumnSet.AddStr(e.ColumnPrimaryKey[0])
+			//}
+			if primaryIsDefined && len(e.ColumnPrimaryKey) > 0 {
+				return nil, fmt.Errorf("primaryIsDefined:%v", primaryColumnSet.Elems())
 			}
-
-			if len(e.ColumnPrimaryKey) == 1 {
-				primaryColumn = e.ColumnPrimaryKey[0]
-				primaryColumnSet.AddStr(e.ColumnPrimaryKey[0])
+			for _, pk := range e.ColumnPrimaryKey {
+				primaryColumnSet.Add(pk)
 			}
 
 			if len(e.ColumnUniqueKey) > 0 {
@@ -108,12 +116,13 @@ func Parse(filename, database string, strict bool) ([]*Table, error) {
 		}
 
 		if primaryColumnSet.Count() > 1 {
-			return nil, fmt.Errorf("%s: unexpected join primary key", prefix)
+			//return nil, fmt.Errorf("%s: unexpected join primary key", prefix)
+			fmt.Printf("%s: unexpected join primary key\n", prefix)
 		}
 
 		delete(uniqueKeyMap, indexNameGen(primaryColumn, "idx"))
 		delete(uniqueKeyMap, indexNameGen(primaryColumn, "unique"))
-		primaryKey, fieldM, err := convertColumns(columns, primaryColumn, strict)
+		primaryKey, fieldM, err := convertColumns(columns, primaryColumnSet, strict)
 		if err != nil {
 			return nil, err
 		}
@@ -167,7 +176,8 @@ func parseNameOriginal(ts []*parser.Table) (nameOriginals [][]string) {
 }
 func checkDuplicateUniqueIndex(uniqueIndex map[string][]*Field, tableName string) {
 	log := console.NewColorConsole()
-	uniqueSet := collection.NewSet()
+	uniqueSet := collection2.NewSet[string]()
+	//uniqueSet := collection.NewSet()
 	for k, i := range uniqueIndex {
 		var list []string
 		for _, e := range i {
@@ -181,16 +191,19 @@ func checkDuplicateUniqueIndex(uniqueIndex map[string][]*Field, tableName string
 			continue
 		}
 
-		uniqueSet.AddStr(joinRet)
+		uniqueSet.Add(joinRet)
 	}
 }
-func convertColumns(columns []*parser.Column, primaryColumn string, strict bool) (Primary, map[string]*Field, error) {
+func convertColumns(columns []*parser.Column, primaryColumn *collection2.SortSet[string], strict bool) (Primary, map[string]*Field, error) {
 	var (
 		primaryKey Primary
 		fieldM     = make(map[string]*Field)
-		log        = console.NewColorConsole()
+		//log          = console.NewColorConsole()
+		primaryNames = primaryColumn.Elems()
 	)
-
+	primaryKey = Primary{
+		Fields: make([]Field, primaryColumn.Count()),
+	}
 	for _, column := range columns {
 		if column == nil {
 			continue
@@ -208,9 +221,12 @@ func convertColumns(columns []*parser.Column, primaryColumn string, strict bool)
 				isDefaultNull = false
 			}
 
-			if column.Name == primaryColumn {
-				isDefaultNull = false
+			for _, primaryName := range primaryNames {
+				if column.Name == primaryName {
+					isDefaultNull = false
+				}
 			}
+
 		}
 
 		dataType, thirdPkg, err := converter.ConvertDataType(column.DataType.Type(), isDefaultNull, column.DataType.Unsigned(), strict)
@@ -218,15 +234,15 @@ func convertColumns(columns []*parser.Column, primaryColumn string, strict bool)
 			return Primary{}, nil, err
 		}
 
-		if column.Constraint != nil {
-			if column.Name == primaryColumn {
-				if !column.Constraint.AutoIncrement && dataType == "int64" {
-					log.Warning("[convertColumns]: The primary key %q is recommended to add constraint `AUTO_INCREMENT`", column.Name)
-				}
-			} else if column.Constraint.NotNull && !column.Constraint.HasDefaultValue {
-				log.Warning("[convertColumns]: The column %q is recommended to add constraint `DEFAULT`", column.Name)
-			}
-		}
+		//if column.Constraint != nil {
+		//	if column.Name == primaryColumn {
+		//		if !column.Constraint.AutoIncrement && dataType == "int64" {
+		//			log.Warning("[convertColumns]: The primary key %q is recommended to add constraint `AUTO_INCREMENT`", column.Name)
+		//		}
+		//	} else if column.Constraint.NotNull && !column.Constraint.HasDefaultValue {
+		//		log.Warning("[convertColumns]: The column %q is recommended to add constraint `DEFAULT`", column.Name)
+		//	}
+		//}
 
 		var field Field
 		field.Name = stringx.From(column.Name)
@@ -234,12 +250,15 @@ func convertColumns(columns []*parser.Column, primaryColumn string, strict bool)
 		field.DataType = dataType
 		field.Comment = util.TrimNewLine(comment)
 
-		if field.Name.Source() == primaryColumn {
-			primaryKey = Primary{
-				Field: field,
-			}
-			if column.Constraint != nil {
-				primaryKey.AutoIncrement = column.Constraint.AutoIncrement
+		for i, primaryName := range primaryNames {
+			if field.Name.Source() == primaryName {
+				//primaryKey = Primary{
+				//	Field: field,
+				//}
+				primaryKey.Fields[i] = field
+				if column.Constraint != nil {
+					primaryKey.AutoIncrement = column.Constraint.AutoIncrement
+				}
 			}
 		}
 
