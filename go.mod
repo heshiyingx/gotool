@@ -1,8 +1,6 @@
 module github.com/heshiyingx/gotool
 
-go 1.22
-
-toolchain go1.22.3
+go 1.21
 
 require (
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10
