@@ -33,7 +33,7 @@ func POST[T any](ctx context.Context, url string, param map[string]interface{}, 
 	client := clientPool.Get().(*resty.Client)
 	defer clientPool.Put(client)
 	var result T
-	response, err := client.R().SetContext(ctx).SetBody(param).SetHeaders(header).Post(url)
+	response, err := client.SetRetryCount(3).R().SetContext(ctx).SetBody(param).SetHeaders(header).Post(url)
 	if err != nil {
 		return result, err
 	}
