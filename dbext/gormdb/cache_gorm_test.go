@@ -7,6 +7,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"sync"
 	"testing"
 	"time"
 )
@@ -121,10 +122,24 @@ func TestCacheGormDB_QueryManyCtx(t *testing.T) {
 		RandSec:           200,
 	})
 	var res []Users
-	cacheGormDB.QueryManyCtx(context.Background(), &res, func(ctx context.Context, ps *[]int64, db *gorm.DB) error {
-		return db.Model(&Users{}).Select("id").Where("app_id = ?", 1).Find(ps).Error
-	}, cacheUsersPKPrefix, func(ctx context.Context, r *Users, p int64, db *gorm.DB) error {
-		return db.Model(&Users{}).Where("id = ?", p).Find(r).Error
-	})
-	fmt.Println("")
+	wg := sync.WaitGroup{}
+	st := time.Now().UnixMilli()
+	for i := 0; i < 3000; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := cacheGormDB.QueryManyCtx(context.Background(), &res, func(ctx context.Context, ps *[]int64, db *gorm.DB) error {
+				return db.Model(&Users{}).Select("id").Where("app_id = ?", 1).Find(ps).Error
+			}, cacheUsersPKPrefix, func(ctx context.Context, r *Users, p int64, db *gorm.DB) error {
+				return db.Model(&Users{}).Where("id = ?", p).Find(r).Error
+			})
+			if err != nil {
+				return
+			}
+		}()
+	}
+
+	wg.Wait()
+	cost := time.Now().UnixMilli() - st
+	fmt.Println(cost)
 }
