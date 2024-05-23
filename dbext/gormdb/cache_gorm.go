@@ -32,6 +32,10 @@ type (
 		db                *gorm.DB
 		antPool           *ants.Pool
 	}
+	pkInfoDefine[P int64 | uint64 | string] struct {
+		pkCacheKey string
+		p          P
+	}
 )
 
 func MustNewCacheGormDB[T any, P int64 | uint64 | string](c Config) *CacheGormDB[T, P] {
@@ -117,6 +121,46 @@ func (cg *CacheGormDB[T, P]) QueryOneCtx(ctx context.Context, result any, key st
 		return err
 	})
 	return err
+}
+
+func (cg *CacheGormDB[T, P]) QueryManyCtx(ctx context.Context, result *[]T, queryPKsFn QueryPrimaryKeysFn[P], primaryCachePrefix string, queryModelFn QueryModelByPKFn[T, P]) error {
+	var pks []P
+	err := queryPKsFn(ctx, &pks, cg.db)
+	if err != nil {
+		return err
+	}
+	if len(pks) == 0 {
+		return nil
+	}
+	pkInfos := make([]pkInfoDefine[P], 0, len(pks))
+	for _, pk := range pks {
+		pkCacheKey := fmt.Sprintf("%v%v", primaryCachePrefix, pk)
+		pkInfos = append(pkInfos, pkInfoDefine[P]{pkCacheKey: pkCacheKey, p: pk})
+	}
+	//res := make([]T, 0, len(pkInfos))
+	for _, pkInfo := range pkInfos {
+		var t T
+		err = cg.takeCtx(ctx, pkInfo.pkCacheKey, &t, func(ctx context.Context, r any, db *gorm.DB) error {
+			rm, ok := r.(*T)
+			if !ok {
+				return fmt.Errorf("unexpected type:%T", r)
+			}
+			err = queryModelFn(ctx, rm, pkInfo.p, cg.db)
+			if err != nil {
+				return err
+			}
+			return nil
+		}, func(result string) error {
+			_, err = cg.rdb.Set(ctx, pkInfo.pkCacheKey, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
+			return err
+		})
+		if err != nil {
+			return err
+		}
+		*result = append(*result, t)
+	}
+	return nil
+
 }
 
 /*---------------*/

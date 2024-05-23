@@ -104,3 +104,27 @@ func TestCacheGormDB_QueryCtx(t *testing.T) {
 	//time.Sleep(time.Hour)
 
 }
+func TestCacheGormDB_QueryManyCtx(t *testing.T) {
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     ":6379",
+		Password: "root",
+	})
+	cacheGormDB := MustNewCacheGormDB[Users, int64](Config{
+		DSN:    "root:root@tcp(127.0.0.1:3306)/im_server?charset=utf8mb4&parseTime=True&loc=Local",
+		DBType: DBTYPE_MySQL,
+		GormConfig: gorm.Config{
+			Logger: logger.Default.LogMode(logger.Info),
+		},
+		Rdb:               rdb,
+		NotFoundExpireSec: 60 * 60,
+		CacheExpireSec:    2000,
+		RandSec:           200,
+	})
+	var res []Users
+	cacheGormDB.QueryManyCtx(context.Background(), &res, func(ctx context.Context, ps *[]int64, db *gorm.DB) error {
+		return db.Model(&Users{}).Select("id").Where("app_id = ?", 1).Find(ps).Error
+	}, cacheUsersPKPrefix, func(ctx context.Context, r *Users, p int64, db *gorm.DB) error {
+		return db.Model(&Users{}).Where("id = ?", p).Find(r).Error
+	})
+	fmt.Println("")
+}
