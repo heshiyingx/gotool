@@ -24,7 +24,10 @@ const (
 )
 
 type (
-	QueryCtxFn func(ctx context.Context, result any, db *gorm.DB) error
+	QueryPrimaryKeyFn[P int64 | uint64 | string] func(ctx context.Context, p *P, db *gorm.DB) error
+	QueryModelFn[T any]                          func(ctx context.Context, r *T, db *gorm.DB) error
+
+	QueryCtxFn func(ctx context.Context, r any, db *gorm.DB) error
 	ExecCtxFn  func(ctx context.Context, db *gorm.DB) (int64, error)
 	CacheFn    func(result string) error
 	Config     struct {
@@ -36,7 +39,6 @@ type (
 		CacheExpireSec    int
 		RandSec           int
 	}
-
 )
 
 func getDialector(c Config) gorm.Dialector {
