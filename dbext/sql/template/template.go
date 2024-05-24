@@ -14,7 +14,7 @@ var Customized string
 
 // Vars defines a template for var block in model
 //
-//go:embed tpl/var.tpl
+//go:embed gorm_tpl/var.tpl
 var Vars string
 
 // Types defines a template for types in model.
@@ -61,12 +61,12 @@ package {{.pkg}}
 
 // Insert defines a template for insert code in model
 //
-//go:embed tpl/insert.tpl
+//go:embed gorm_tpl/insert.tpl
 var Insert string
 
 // InsertMethod defines an interface method template for insert code in model
 //
-//go:embed tpl/interface-insert.tpl
+//go:embed gorm_tpl/interface-insert.tpl
 var InsertMethod string
 
 // Update defines a template for generating update codes
@@ -81,7 +81,7 @@ var UpdateMethod string
 
 // Imports defines a import template for model in cache case
 //
-//go:embed tpl/import.tpl
+//go:embed gorm_tpl/import.tpl
 var Imports string
 
 // ImportsNoCache defines a import template for model in normal case
@@ -89,10 +89,10 @@ var Imports string
 //go:embed tpl/import-no-cache.tpl
 var ImportsNoCache string
 
-// FindOne defines find row by id.
+// FindByPK defines find row by PK.
 //
-//go:embed tpl/find-one.tpl
-var FindOne string
+//go:embed gorm_tpl/find-one-by-pk.tpl
+var FindByPK string
 
 // FindOneByField defines find row by field.
 //
@@ -106,7 +106,7 @@ var FindOneByFieldExtraMethod string
 
 // FindOneMethod defines find row method.
 //
-//go:embed tpl/interface-find-one.tpl
+//go:embed gorm_tpl/interface-find-by-pk.tpl
 var FindOneMethod string
 
 // FindOneByFieldMethod defines find row by field method.

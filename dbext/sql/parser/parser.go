@@ -27,7 +27,7 @@ type (
 
 	// Primary describes a primary key
 	Primary struct {
-		Fields        []Field
+		Fields        []*Field
 		AutoIncrement bool
 	}
 
@@ -116,8 +116,9 @@ func Parse(filename, database string, strict bool) ([]*Table, error) {
 		}
 
 		if primaryColumnSet.Count() > 1 {
-			//return nil, fmt.Errorf("%s: unexpected join primary key", prefix)
 			fmt.Printf("%s: unexpected join primary key\n", prefix)
+			return nil, fmt.Errorf("%s: unexpected join primary key", prefix)
+
 		}
 
 		delete(uniqueKeyMap, indexNameGen(primaryColumn, "idx"))
@@ -202,7 +203,7 @@ func convertColumns(columns []*parser.Column, primaryColumn *collection2.SortSet
 		primaryNames = primaryColumn.Elems()
 	)
 	primaryKey = Primary{
-		Fields: make([]Field, primaryColumn.Count()),
+		Fields: make([]*Field, primaryColumn.Count()),
 	}
 	for _, column := range columns {
 		if column == nil {
@@ -255,7 +256,7 @@ func convertColumns(columns []*parser.Column, primaryColumn *collection2.SortSet
 				//primaryKey = Primary{
 				//	Field: field,
 				//}
-				primaryKey.Fields[i] = field
+				primaryKey.Fields[i] = &field
 				if column.Constraint != nil {
 					primaryKey.AutoIncrement = column.Constraint.AutoIncrement
 				}
@@ -265,4 +266,12 @@ func convertColumns(columns []*parser.Column, primaryColumn *collection2.SortSet
 		fieldM[field.Name.Source()] = &field
 	}
 	return primaryKey, fieldM, nil
+}
+func (t *Table) ContainsTime() bool {
+	for _, item := range t.Fields {
+		if item.DataType == timeImport {
+			return true
+		}
+	}
+	return false
 }

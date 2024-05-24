@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 const pwd = "."
@@ -181,13 +182,32 @@ func (g *defaultGenerator) genModel(in parser.Table, withCache bool) (string, er
 	table.ContainsUniqueCacheKey = len(uniqueKey) > 0
 	table.ignoreColumns = g.ignoreColumns
 
-	return "", nil
+	importsCode, err := genImports(table, withCache, in.ContainsTime())
+	if err != nil {
+		return "", err
+	}
+
+	insertCode, insertCodeMethod, err := genInsert(table, withCache)
+	if err != nil {
+		return "", err
+	}
+
+	varsCode, err := genVars(table, withCache, g.isPostgreSql)
+	if err != nil {
+		return "", err
+	}
+	findByPKCode, findByPKInterface, err := genFindPK(table, withCache)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.Join([]string{importsCode, insertCode, varsCode, insertCodeMethod, findByPKCode, findByPKInterface}, ""), nil
 
 }
 func genCacheKeys(table parser.Table) (Key, []Key) {
 	var primaryKey Key
 	var uniqueKey []Key
-	primaryKey = genCacheKey(table.Db, table.Name, []*parser.Field{&table.PrimaryKey.Field})
+	primaryKey = genCacheKey(table.Db, table.Name, table.PrimaryKey.Fields)
 	for _, each := range table.UniqueIndex {
 		uniqueKey = append(uniqueKey, genCacheKey(table.Db, table.Name, each))
 	}
@@ -252,4 +272,12 @@ func genCacheKey(db, table stringx.String, in []*parser.Field) Key {
 		Fields:            in,
 		FieldNameJoin:     fieldNameJoin,
 	}
+}
+func (t Table) isIgnoreColumns(columnName string) bool {
+	for _, v := range t.ignoreColumns {
+		if v == columnName {
+			return true
+		}
+	}
+	return false
 }

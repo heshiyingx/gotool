@@ -91,8 +91,8 @@ func TestCacheGormDB_QueryManyCtx(t *testing.T) {
 		},
 		Rdb:               rdb,
 		NotFoundExpireSec: 60 * 60,
-		CacheExpireSec:    2000,
-		RandSec:           200,
+		CacheExpireSec:    60 * 60,
+		RandSec:           60 * 60,
 	})
 	var res []Users
 	st := time.Now().UnixMilli()
@@ -206,7 +206,7 @@ func TestCacheGormDB_ExecCtx(t *testing.T) {
 		udb := db.Model(&Users{}).Where("app_id = ? and third_user_id = ?", appId, thirdUserID).Update("person_msg_read_seq", 10)
 		return udb.RowsAffected, udb.Error
 	}, usersAppIdAccountKey, pkCacheKey)
-	time.Sleep(time.Second * 5)
+	time.Sleep(time.Second * 3)
 	fmt.Println("删除")
-	time.Sleep(time.Second * 60)
+
 }
