@@ -83,7 +83,7 @@ func NewCacheGormDB[T any, P int64 | uint64 | string](c Config) (*CacheGormDB[T,
 
 /*---------------*/
 
-func (cg *CacheGormDB[T, P]) QueryOneCtx(ctx context.Context, result any, key string, queryPrimaryFn QueryPrimaryKeyFn[P], primaryCachePrefix string, queryModelFn QueryModelFn[T]) error {
+func (cg *CacheGormDB[T, P]) QueryOneCtx(ctx context.Context, result any, key string, queryPrimaryFn QueryPrimaryKeyFn[P], primaryCachePrefix string, queryModelFn QueryModelByPKFn[T, P]) error {
 	var primaryValue P
 	err := cg.takeCtx(ctx, key, &primaryValue, func(ctx context.Context, ret any, db *gorm.DB) error {
 		//var p P
@@ -111,7 +111,7 @@ func (cg *CacheGormDB[T, P]) QueryOneCtx(ctx context.Context, result any, key st
 		if !ok {
 			return fmt.Errorf("unexpected type for ret, expected *P, got: %T", r)
 		}
-		err = queryModelFn(ctx, rModel, db)
+		err = queryModelFn(ctx, rModel, primaryValue, db)
 		if err != nil {
 			return err
 		}
@@ -122,7 +122,19 @@ func (cg *CacheGormDB[T, P]) QueryOneCtx(ctx context.Context, result any, key st
 	})
 	return err
 }
+func (cg *CacheGormDB[T, P]) QueryOneByPKCtx(ctx context.Context, r *T, key string, queryFn QueryCtxFn) error {
 
+	return cg.QueryCtx(ctx, r, key, queryFn)
+}
+func (cg *CacheGormDB[T, P]) QueryToGetPKCtx(ctx context.Context, key string, p *P, queryFn QueryPrimaryKeyFn[P]) error {
+	return cg.QueryCtx(ctx, p, key, func(ctx context.Context, r any, db *gorm.DB) error {
+		pV, ok := r.(*P)
+		if !ok {
+			return fmt.Errorf("P type is wrong")
+		}
+		return queryFn(ctx, pV, db)
+	})
+}
 func (cg *CacheGormDB[T, P]) QueryManyCtx(ctx context.Context, result *[]T, queryPKsFn QueryPrimaryKeysFn[P], primaryCachePrefix string, queryModelFn QueryModelByPKFn[T, P]) error {
 	var pks []P
 	err := queryPKsFn(ctx, &pks, cg.db)
@@ -138,20 +150,52 @@ func (cg *CacheGormDB[T, P]) QueryManyCtx(ctx context.Context, result *[]T, quer
 		pkInfos = append(pkInfos, pkInfoDefine[P]{pkCacheKey: pkCacheKey, p: pk})
 	}
 	//res := make([]T, 0, len(pkInfos))
+	return cg.QueryManyByPKsCtx(ctx, result, pks, primaryCachePrefix, queryModelFn)
+
+	//for _, pkInfo := range pkInfos {
+	//	var t T
+	//	err = cg.takeCtx(ctx, pkInfo.pkCacheKey, &t, func(ctx context.Context, r any, db *gorm.DB) error {
+	//		rm, ok := r.(*T)
+	//		if !ok {
+	//			return fmt.Errorf("unexpected type:%T", r)
+	//		}
+	//		err = queryModelFn(ctx, rm, pkInfo.p, cg.db)
+	//		if err != nil {
+	//			return err
+	//		}
+	//		return nil
+	//	}, func(result string) error {
+	//		_, err = cg.rdb.Set(ctx, pkInfo.pkCacheKey, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
+	//		return err
+	//	})
+	//	if err != nil {
+	//		return err
+	//	}
+	//	*result = append(*result, t)
+	//}
+	//return nil
+
+}
+func (cg *CacheGormDB[T, P]) QueryManyByPKsCtx(ctx context.Context, result *[]T, pks []P, primaryCachePrefix string, queryDBFn QueryModelByPKFn[T, P]) error {
+	pkInfos := make([]pkInfoDefine[P], 0, len(pks))
+	for _, pk := range pks {
+		pkCacheKey := fmt.Sprintf("%v%v", primaryCachePrefix, pk)
+		pkInfos = append(pkInfos, pkInfoDefine[P]{pkCacheKey: pkCacheKey, p: pk})
+	}
 	for _, pkInfo := range pkInfos {
 		var t T
-		err = cg.takeCtx(ctx, pkInfo.pkCacheKey, &t, func(ctx context.Context, r any, db *gorm.DB) error {
+		err := cg.takeCtx(ctx, pkInfo.pkCacheKey, &t, func(ctx context.Context, r any, db *gorm.DB) error {
 			rm, ok := r.(*T)
 			if !ok {
 				return fmt.Errorf("unexpected type:%T", r)
 			}
-			err = queryModelFn(ctx, rm, pkInfo.p, cg.db)
+			err := queryDBFn(ctx, rm, pkInfo.p, cg.db)
 			if err != nil {
 				return err
 			}
 			return nil
 		}, func(result string) error {
-			_, err = cg.rdb.Set(ctx, pkInfo.pkCacheKey, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
+			_, err := cg.rdb.Set(ctx, pkInfo.pkCacheKey, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
 			return err
 		})
 		if err != nil {
@@ -160,86 +204,9 @@ func (cg *CacheGormDB[T, P]) QueryManyCtx(ctx context.Context, result *[]T, quer
 		*result = append(*result, t)
 	}
 	return nil
-
-}
-
-/*---------------*/
-
-func (cg *CacheGormDB[T, P]) QueryCtx(ctx context.Context, result any, key string, fn QueryCtxFn) error {
-	return cg.takeCtx(ctx, key, result, fn, func(result string) error {
-		_, err := cg.rdb.Set(ctx, key, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
-		return err
-	})
 }
 func (cg *CacheGormDB[T, P]) QueryNoCacheCtx(ctx context.Context, result any, fn QueryCtxFn) error {
 	return fn(ctx, result, cg.db)
-}
-func (cg *CacheGormDB[T, P]) takeCtx(ctx context.Context, key string, result any, query QueryCtxFn, cacheFn CacheFn) error {
-
-	_, err, _ := cg.singleFlight.Do(key, func() (interface{}, error) {
-		fmt.Println("进入redis缓存")
-		val, err := cg.rdb.Get(ctx, key).Result()
-		if errors.Is(err, redis.Nil) {
-			err = nil
-		}
-		if val == notFoundPlaceholder {
-			return nil, gorm.ErrRecordNotFound
-		}
-		if val != "" {
-			err = json.Unmarshal([]byte(val), result)
-			return result, err
-
-		}
-
-		if err = query(ctx, result, cg.db); err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				err = cg.setCacheWithNotFound(ctx, key)
-				if cg.db.Logger != nil && err != nil {
-					cg.db.Logger.Error(ctx, "setCacheWithNotFound err: %v key:%v", err, key)
-				}
-				return nil, gorm.ErrRecordNotFound
-			} else {
-				return nil, err
-			}
-		}
-		resultBytes, err := json.Marshal(result)
-		if err != nil {
-			return nil, err
-		}
-		err = cacheFn(string(resultBytes))
-		if err != nil {
-			return nil, err
-		}
-		return result, nil
-	})
-	return err
-}
-func (cg *CacheGormDB[T, P]) ExecCtx(ctx context.Context, execFn ExecCtxFn, keys ...string) (int64, error) {
-	err := cg.rdb.Del(ctx, keys...).Err()
-	if err != nil {
-		return 0, err
-	}
-	result, err := execFn(ctx, cg.db)
-	if err != nil {
-		return 0, err
-	}
-	err = cg.rdb.Del(ctx, keys...).Err()
-	if err != nil {
-	}
-	err = cg.antPool.Submit(func() {
-		deadline, cancelFunc := context.WithDeadline(ctx, time.Now().Add(time.Millisecond*200))
-		defer cancelFunc()
-		select {
-		case <-deadline.Done():
-		}
-		err = cg.rdb.Del(ctx, keys...).Err()
-		if err != nil {
-		}
-	})
-	if err != nil {
-		//return 0, err
-	}
-	return result, nil
 }
 func (cg *CacheGormDB[T, P]) QuerySafeSingleFromDB(ctx context.Context, key string, result any, queryFn QueryCtxFn, expire int) error {
 	val, err := cg.rdb.Get(ctx, key).Result()
@@ -292,6 +259,97 @@ func (cg *CacheGormDB[T, P]) QuerySafeSingleFromDB(ctx context.Context, key stri
 			return nil
 		}
 	}
+}
+func (cg *CacheGormDB[T, P]) QueryCtx(ctx context.Context, result any, key string, fn QueryCtxFn) error {
+	return cg.takeCtx(ctx, key, result, fn, func(result string) error {
+		_, err := cg.rdb.Set(ctx, key, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
+		return err
+	})
+}
+func (cg *CacheGormDB[T, P]) DelCacheKeys(ctx context.Context, keys ...string) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	return cg.rdb.Del(ctx, keys...).Err()
+}
+
+/*---------------*/
+
+func (cg *CacheGormDB[T, P]) takeCtx(ctx context.Context, key string, result any, query QueryCtxFn, cacheFn CacheFn) error {
+
+	_, err, _ := cg.singleFlight.Do(key, func() (interface{}, error) {
+		fmt.Println("进入redis缓存")
+		val, err := cg.rdb.Get(ctx, key).Result()
+		if errors.Is(err, redis.Nil) {
+			err = nil
+		}
+		if val == notFoundPlaceholder {
+			return nil, gorm.ErrRecordNotFound
+		}
+		if val != "" {
+			err = json.Unmarshal([]byte(val), result)
+			return result, err
+
+		}
+
+		if err = query(ctx, result, cg.db); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				err = cg.setCacheWithNotFound(ctx, key)
+				if cg.db.Logger != nil && err != nil {
+					cg.db.Logger.Error(ctx, "setCacheWithNotFound err: %v key:%v", err, key)
+				}
+				return nil, gorm.ErrRecordNotFound
+			} else {
+				return nil, err
+			}
+		}
+		resultBytes, err := json.Marshal(result)
+		if err != nil {
+			return nil, err
+		}
+		err = cacheFn(string(resultBytes))
+		if err != nil {
+			return nil, err
+		}
+		return result, nil
+	})
+	return err
+}
+func (cg *CacheGormDB[T, P]) ExecCtx(ctx context.Context, execFn ExecCtxFn, keys ...string) (int64, error) {
+	if len(keys) > 0 {
+		err := cg.rdb.Del(ctx, keys...).Err()
+		if err != nil {
+			return 0, err
+		}
+	}
+	result, err := execFn(ctx, cg.db)
+	if err != nil {
+		return 0, err
+	}
+	if len(keys) > 0 {
+		err = cg.rdb.Del(ctx, keys...).Err()
+		if err != nil {
+			return 0, err
+		}
+	}
+	if len(keys) > 0 {
+		err = cg.antPool.Submit(func() {
+			deadline, cancelFunc := context.WithDeadline(ctx, time.Now().Add(time.Millisecond*300))
+			defer cancelFunc()
+			select {
+			case <-deadline.Done():
+			}
+			err = cg.rdb.Del(ctx, keys...).Err()
+			if err != nil {
+				log.Fatalf("ant pool task doing err:%v", err)
+			}
+		})
+		if err != nil {
+			log.Fatalf("ant pool task Submit err:%v", err)
+		}
+	}
+
+	return result, nil
 }
 
 func (cg *CacheGormDB[T, P]) setCacheWithNotFound(ctx context.Context, key string) error {

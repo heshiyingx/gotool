@@ -7,7 +7,6 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"sync"
 	"testing"
 	"time"
 )
@@ -63,8 +62,8 @@ func TestCacheGormDB_QueryCtx(t *testing.T) {
 	var user Users
 	err := cacheGormDB.QueryOneCtx(context.Background(), &user, usersAppIdAccountKey, func(ctx context.Context, p *int64, db *gorm.DB) error {
 		return db.Model(&Users{}).Select("id").Where("app_id = ? and third_user_id = ?", appId, thirdUserID).Take(p).Error
-	}, cacheUsersPKPrefix, func(ctx context.Context, r *Users, db *gorm.DB) error {
-		return db.Model(&Users{}).Where("app_id = ? and third_user_id = ?", appId, thirdUserID).Take(r).Error
+	}, cacheUsersPKPrefix, func(ctx context.Context, r *Users, p int64, db *gorm.DB) error {
+		return db.Model(&Users{}).Where("id = ?", p).Take(r).Error
 
 	})
 	if err != nil {
@@ -74,32 +73,6 @@ func TestCacheGormDB_QueryCtx(t *testing.T) {
 
 	fmt.Printf("aa:%v", user)
 
-	//wg := sync.WaitGroup{}
-	//num := int64(0)
-	//for i := 0; i < 1; i++ {
-	//	wg.Add(1)
-	//	go func() {
-	//		defer func() {
-	//			atomic.AddInt64(&num, 1)
-	//			wg.Done()
-	//		}()
-	//		var user Users
-	//		err := cacheGormDB.QueryOneCtx(context.Background(), &user, usersAppIdAccountKey, func(ctx context.Context, p int64, db *gorm.DB) error {
-	//			return db.Model(&Users{}).Select("id").Where("app_id = ? and third_user_id = ?", appId, thirdUserID).Take(&p).Error
-	//
-	//		}, cacheUsersPKPrefix, func(ctx context.Context, db *gorm.DB) (Users, error) {
-	//			err := db.Model(&Users{}).Where("app_id = ? and third_user_id = ?", appId, thirdUserID).Take(&user).Error
-	//
-	//			return user, err
-	//		})
-	//		if err != nil {
-	//			t.Error(err)
-	//			return
-	//		}
-	//	}()
-	//}
-	//fmt.Println("---")
-	//wg.Wait()
 	fmt.Println("所有查询结束")
 	//fmt.Println("结束:", num)
 	//time.Sleep(time.Hour)
@@ -122,24 +95,118 @@ func TestCacheGormDB_QueryManyCtx(t *testing.T) {
 		RandSec:           200,
 	})
 	var res []Users
-	wg := sync.WaitGroup{}
 	st := time.Now().UnixMilli()
-	for i := 0; i < 3000; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			err := cacheGormDB.QueryManyCtx(context.Background(), &res, func(ctx context.Context, ps *[]int64, db *gorm.DB) error {
-				return db.Model(&Users{}).Select("id").Where("app_id = ?", 1).Find(ps).Error
-			}, cacheUsersPKPrefix, func(ctx context.Context, r *Users, p int64, db *gorm.DB) error {
-				return db.Model(&Users{}).Where("id = ?", p).Find(r).Error
-			})
-			if err != nil {
-				return
-			}
-		}()
+	//wg := sync.WaitGroup{}
+	//for i := 0; i < 3000; i++ {
+	//	wg.Add(1)
+	//	go func() {
+	//defer wg.Done()
+	err := cacheGormDB.QueryManyCtx(context.Background(), &res, func(ctx context.Context, ps *[]int64, db *gorm.DB) error {
+		return db.Model(&Users{}).Select("id").Where("app_id = ?", 1).Find(ps).Error
+	}, cacheUsersPKPrefix, func(ctx context.Context, r *Users, p int64, db *gorm.DB) error {
+		return db.Model(&Users{}).Where("id = ?", p).Find(r).Error
+	})
+	if err != nil {
+		return
 	}
+	//	}()
+	//}
 
-	wg.Wait()
+	//wg.Wait()
 	cost := time.Now().UnixMilli() - st
 	fmt.Println(cost)
+}
+
+func TestCacheGormDB_QueryManyByPKsCtx(t *testing.T) {
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     ":6379",
+		Password: "root",
+	})
+	cacheGormDB := MustNewCacheGormDB[Users, int64](Config{
+		DSN:    "root:root@tcp(127.0.0.1:3306)/im_server?charset=utf8mb4&parseTime=True&loc=Local",
+		DBType: DBTYPE_MySQL,
+		GormConfig: gorm.Config{
+			Logger: logger.Default.LogMode(logger.Info),
+		},
+		Rdb:               rdb,
+		NotFoundExpireSec: 60 * 60,
+		CacheExpireSec:    2000,
+		RandSec:           200,
+	})
+	var res []Users
+	pks := []int64{1, 2, 11, 12, 13, 14, 15, 16, 19, 18}
+	err := cacheGormDB.QueryManyByPKsCtx(context.Background(), &res, pks, cacheUsersPKPrefix, func(ctx context.Context, r *Users, p int64, db *gorm.DB) error {
+		return db.Model(&Users{}).Where("id = ?", p).Take(r).Error
+	})
+	if err != nil {
+		return
+	}
+	fmt.Printf("%v\n", res)
+}
+func TestCacheGormDB_QueryOneByPKCtx(t *testing.T) {
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     ":6379",
+		Password: "root",
+	})
+	cacheGormDB := MustNewCacheGormDB[Users, int64](Config{
+		DSN:    "root:root@tcp(127.0.0.1:3306)/im_server?charset=utf8mb4&parseTime=True&loc=Local",
+		DBType: DBTYPE_MySQL,
+		GormConfig: gorm.Config{
+			Logger: logger.Default.LogMode(logger.Info),
+		},
+		Rdb:               rdb,
+		NotFoundExpireSec: 60 * 60,
+		CacheExpireSec:    2000,
+		RandSec:           200,
+	})
+	pkValue := 1
+	pkCacheKey := fmt.Sprintf("%v%v", cacheUsersPKPrefix, pkValue)
+	var u Users
+	cacheGormDB.QueryOneByPKCtx(context.Background(), &u, pkCacheKey, func(ctx context.Context, r any, db *gorm.DB) error {
+		return db.Model(&Users{}).Where("id = ?", pkValue).Take(r).Error
+	})
+}
+func TestCacheGormDB_ExecCtx(t *testing.T) {
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     ":6379",
+		Password: "root",
+	})
+	cacheGormDB := MustNewCacheGormDB[Users, int64](Config{
+		DSN:    "root:root@tcp(127.0.0.1:3306)/im_server?charset=utf8mb4&parseTime=True&loc=Local",
+		DBType: DBTYPE_MySQL,
+		GormConfig: gorm.Config{
+			Logger: logger.Default.LogMode(logger.Info),
+		},
+		Rdb:               rdb,
+		NotFoundExpireSec: 60 * 60,
+		CacheExpireSec:    2000,
+		RandSec:           200,
+	})
+	thirdUserIDs := []int64{636159000534106112, 643388863682752513, 643753208329592833, 639057277399130113, 647819652126830593, 646681282172203009}
+
+	var appId = 1
+	for _, _ = range thirdUserIDs {
+
+	}
+	thirdUserID := 639412975567962112
+	//var thirdUserID = 647818798455934977
+
+	usersAppIdAccountKey := fmt.Sprintf("%s%v:%v", cacheUsersAppIdThirdUserIdPrefix, appId, thirdUserID)
+
+	var pkValue int64
+	err := cacheGormDB.QueryToGetPKCtx(context.Background(), usersAppIdAccountKey, &pkValue, func(ctx context.Context, p *int64, db *gorm.DB) error {
+		return db.Model(&Users{}).Select("id").Where("app_id = ? and third_user_id = ?", appId, thirdUserID).Take(p).Error
+	})
+
+	if err != nil {
+		return
+	}
+	pkCacheKey := fmt.Sprintf("%v%v", cacheUsersPKPrefix, pkValue)
+	cacheGormDB.ExecCtx(context.Background(), func(ctx context.Context, db *gorm.DB) (int64, error) {
+		udb := db.Model(&Users{}).Where("app_id = ? and third_user_id = ?", appId, thirdUserID).Update("person_msg_read_seq", 10)
+		return udb.RowsAffected, udb.Error
+	}, usersAppIdAccountKey, pkCacheKey)
+	time.Sleep(time.Second * 5)
+	fmt.Println("删除")
+	time.Sleep(time.Second * 60)
 }
