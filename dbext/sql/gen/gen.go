@@ -186,22 +186,26 @@ func (g *defaultGenerator) genModel(in parser.Table, withCache bool) (string, er
 	if err != nil {
 		return "", err
 	}
+	varsCode, err := genVars(table, withCache, g.isPostgreSql)
+	if err != nil {
+		return "", err
+	}
 
 	insertCode, insertCodeMethod, err := genInsert(table, withCache)
 	if err != nil {
 		return "", err
 	}
 
-	varsCode, err := genVars(table, withCache, g.isPostgreSql)
-	if err != nil {
-		return "", err
-	}
 	findByPKCode, findByPKInterface, err := genFindPK(table, withCache)
 	if err != nil {
 		return "", err
 	}
+	deleteCode, deleteInterface, err := genDeleteByPK(table, withCache)
+	if err != nil {
+		return "", err
+	}
 
-	return strings.Join([]string{importsCode, insertCode, varsCode, insertCodeMethod, findByPKCode, findByPKInterface}, ""), nil
+	return strings.Join([]string{importsCode, deleteCode, deleteInterface, insertCode, varsCode, insertCodeMethod, findByPKCode, findByPKInterface}, ""), nil
 
 }
 func genCacheKeys(table parser.Table) (Key, []Key) {

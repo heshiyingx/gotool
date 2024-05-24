@@ -126,10 +126,10 @@ var Error string
 
 // Delete defines a delete template
 //
-//go:embed tpl/delete.tpl
+//go:embed gorm_tpl/delete.tpl
 var Delete string
 
 // DeleteMethod defines a delete template for interface method
 //
-//go:embed tpl/interface-delete.tpl
+//go:embed gorm_tpl/interface-delete.tpl
 var DeleteMethod string
