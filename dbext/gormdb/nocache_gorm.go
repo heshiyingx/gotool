@@ -2,20 +2,19 @@ package gormdb
 
 import (
 	"context"
-	"errors"
-	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 	"log"
 	"time"
 )
 
-type GormDB struct {
-	singleFlight *singleflight.Group
-	db           *gorm.DB
-}
+type (
+	GormDB[T any, P int64 | uint64 | string] struct {
+		db *gorm.DB
+	}
+)
 
-func MustNewGormDB(c Config) *GormDB {
-	gormDB, err := NewGormDB(c)
+func MustNewGormDB[T any, P int64 | uint64 | string](c Config) *GormDB[T, P] {
+	gormDB, err := NewGormDB[T, P](c)
 	if err != nil {
 		log.Fatalf("NewCacheGormDB err:%v", err)
 		return nil
@@ -23,7 +22,7 @@ func MustNewGormDB(c Config) *GormDB {
 	return gormDB
 }
 
-func NewGormDB(c Config) (*GormDB, error) {
+func NewGormDB[T any, P int64 | uint64 | string](c Config) (*GormDB[T, P], error) {
 	db, err := gorm.Open(getDialector(c), &c.GormConfig)
 	if err != nil {
 		return nil, err
@@ -39,40 +38,16 @@ func NewGormDB(c Config) (*GormDB, error) {
 	// 设置连接可复用的最大时间
 	sqlDB.SetConnMaxLifetime(10 * time.Minute)
 
-	return &GormDB{
-		singleFlight: &singleflight.Group{},
-		db:           db,
+	return &GormDB[T, P]{
+		db: db,
 	}, nil
 }
-func (cg *GormDB) QueryCtx(ctx context.Context, result any, fn QueryCtxFn) error {
-	return fn(ctx, result, cg.db)
-}
-func (cg *GormDB) QueryNoCacheCtx(ctx context.Context, result any, fn QueryCtxFn) error {
-	return fn(ctx, result, cg.db)
-}
-func (cg *GormDB) takeCtx(ctx context.Context, key string, result any, query QueryCtxFn) error {
 
-	_, err, _ := cg.singleFlight.Do(key, func() (interface{}, error) {
-
-		if err := query(ctx, result, cg.db); err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				if cg.db.Logger != nil {
-					cg.db.Logger.Error(ctx, "setCacheWithNotFound err: %v key:%v", err, key)
-				}
-				return nil, gorm.ErrRecordNotFound
-			} else {
-				return nil, err
-			}
-		}
-		return result, nil
-	})
-	return err
+func (cg *GormDB[T, P]) QueryCtx(ctx context.Context, result any, queryFn QueryCtxFn) error {
+	return queryFn(ctx, result, cg.db)
 }
-func (cg *GormDB) ExecCtx(ctx context.Context, execFn ExecCtxFn, keys ...string) (int64, error) {
 
-	result, err := execFn(ctx, cg.db)
-	if err != nil {
-		return 0, err
-	}
-	return result, nil
+func (cg *GormDB[T, P]) ExecCtx(ctx context.Context, execFn ExecCtxFn) (int64, error) {
+
+	return execFn(ctx, cg.db)
 }
