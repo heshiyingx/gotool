@@ -1,3 +1,7 @@
+
+{{if .withCache}}
 var (
-{{if .withCache}}{{.cacheKeys}}{{end}}
+{{.cacheKeys}}
 )
+{{else}}
+{{end}}

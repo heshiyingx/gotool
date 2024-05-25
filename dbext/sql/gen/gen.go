@@ -36,7 +36,6 @@ type defaultGenerator struct {
 	dir           string
 	pkg           string
 	cfg           *Config
-	isPostgreSql  bool
 	ignoreColumns []string
 }
 type Option func(generator *defaultGenerator)
@@ -231,7 +230,7 @@ func (g *defaultGenerator) genModel(in parser.Table, withCache bool) (string, st
 	if err != nil {
 		return "", "", err
 	}
-	varsCode, err := genVars(table, withCache, g.isPostgreSql)
+	varsCode, err := genVars(table, withCache)
 	if err != nil {
 		return "", "", err
 	}
@@ -260,7 +259,7 @@ func (g *defaultGenerator) genModel(in parser.Table, withCache bool) (string, st
 	}
 	var list []string
 	list = append(list, insertCodeInterface, findByPKInterface, updateByPKInterface, deleteInterface, uniqueKeyCode.findOneInterfaceMethod)
-	typesCode, err := genTypes(table, strings.Join(list, "\n"), true)
+	typesCode, err := genTypes(table, strings.Join(list, "\n"), withCache)
 	if err != nil {
 		return "", "", err
 	}

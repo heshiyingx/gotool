@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-func genVars(table Table, withCache, postgreSql bool) (string, error) {
+func genVars(table Table, withCache bool) (string, error) {
 	keys := make([]string, 0)
 	keys = append(keys, table.PrimaryCacheKey.VarExpression)
 	for _, v := range table.UniqueCacheKey {
@@ -32,16 +32,11 @@ func genVars(table Table, withCache, postgreSql bool) (string, error) {
 		"autoIncrement":         table.PrimaryKey.AutoIncrement,
 		"originalPrimaryKey":    wrapWithRawString(table.PrimaryKey.Fields[0].Name.Source()),
 		"withCache":             withCache,
-		"postgreSql":            postgreSql,
 		"data":                  table,
 		"ignoreColumns": func() string {
 			var set = collection.NewSet[string]()
 			for _, c := range table.ignoreColumns {
-				if postgreSql {
-					set.Add(fmt.Sprintf(`"%s"`, c))
-				} else {
-					set.Add(fmt.Sprintf("\"`%s`\"", c))
-				}
+				set.Add(fmt.Sprintf("\"`%s`\"", c))
 			}
 			list := set.Elems()
 			sort.Strings(list)
@@ -71,11 +66,13 @@ func wrapWithRawString(v string) string {
 
 	return v
 }
+
 var notNullTypeMap = map[string]string{
-	"sql.NullString":"string",
+	"sql.NullString": "string",
 }
+
 func getNotNullType(t string) string {
-	if nt,ok := notNullTypeMap[t];ok{
+	if nt, ok := notNullTypeMap[t]; ok {
 		return nt
 	}
 	return t

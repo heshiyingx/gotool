@@ -9,7 +9,6 @@ type (
 		{{else}}
 			db   *gormdb.GormDB[{{.upperStartCamelObject}}, {{.pkType}}]
 		{{end}}
-		table string
 	}
 
 	{{.upperStartCamelObject}} struct {

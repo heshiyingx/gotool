@@ -22,9 +22,9 @@ type (
 )
 
 // New{{.upperStartCamelObject}}DB returns a model for the database table.
-func New{{.upperStartCamelObject}}DB({{if .withCache}}config gormdb.Config{{end}}) {{.upperStartCamelObject}}DBInterface {
+func New{{.upperStartCamelObject}}DB(config gormdb.Config) {{.upperStartCamelObject}}DBInterface {
 	return &custom{{.upperStartCamelObject}}DB{
-		default{{.upperStartCamelObject}}Model: newDefault{{.upperStartCamelObject}}Model({{if .withCache}}config{{end}}),
+		default{{.upperStartCamelObject}}Model: newDefault{{.upperStartCamelObject}}Model(config),
 	}
 }
 

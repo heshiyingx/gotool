@@ -15,7 +15,7 @@ func TestNewDefaultGenerator(t *testing.T) {
 	filename := "/Users/john/study/code/gocode/test2/sqld/user.sql"
 	database := "database"
 	strict := true
-	withCache := true
+	withCache := false
 	tables, err := parser.Parse(filename, database, strict)
 	if err != nil {
 		t.Error(err)

@@ -17,17 +17,11 @@ func (m *default{{.upperStartCamelObject}}Model) FindOneBy{{.upperField}}(ctx co
         return &resp, err
 
     {{else}}
-        {{/*var resp {{.upperStartCamelObject}}*/}}
-        {{/*query := fmt.Sprintf("select %s from %s where {{.originalField}} limit 1", {{.lowerStartCamelObject}}Rows, m.table)*/}}
-        {{/*err := m.conn.QueryRowCtx(ctx, &resp, query, {{.lowerStartCamelField}})*/}}
-        {{/*switch err {*/}}
-        {{/*case nil:*/}}
-        {{/*    return &resp, nil*/}}
-        {{/*case sqlx.ErrNotFound:*/}}
-        {{/*    return nil, ErrNotFound*/}}
-        {{/*default:*/}}
-        {{/*    return nil, err*/}}
-        {{/*}*/}}
+        var resp Users
+        err := m.db.QueryCtx(ctx, &resp, func(ctx context.Context, r any, db *gorm.DB) error {
+        return db.Model(&{{.upperStartCamelObject}}{}).Where("{{.originalField}}", {{.lowerStartCamelField}}).Take(r).Error
+        })
+        return &resp, err
     {{end}}
 }
 
@@ -52,17 +46,16 @@ func (m *default{{.upperStartCamelObject}}Model) UpdateOneBy{{.upperField}}(ctx 
         },{{.keyNames}})
 
     {{else}}
-        {{/*var resp {{.upperStartCamelObject}}*/}}
-        {{/*query := fmt.Sprintf("select %s from %s where {{.originalField}} limit 1", {{.lowerStartCamelObject}}Rows, m.table)*/}}
-        {{/*err := m.conn.QueryRowCtx(ctx, &resp, query, {{.lowerStartCamelField}})*/}}
-        {{/*switch err {*/}}
-        {{/*case nil:*/}}
-        {{/*    return &resp, nil*/}}
-        {{/*case sqlx.ErrNotFound:*/}}
-        {{/*    return nil, ErrNotFound*/}}
-        {{/*default:*/}}
-        {{/*    return nil, err*/}}
-        {{/*}*/}}
+
+    return m.db.ExecCtx(ctx, func(ctx context.Context, db *gorm.DB) (int64, error) {
+        upTx := db.Model(&{{.upperStartCamelObject}}{}).Where("{{.originalField}}", {{.lowerStartCamelField}})
+        if len(fields) > 0 {
+            upTx = upTx.Select(strings.Join(fields, ",")).Updates(updateObj)
+        } else {
+            upTx = upTx.Save(updateObj)
+        }
+        return upTx.RowsAffected, upTx.Error
+    })
     {{end}}
 }
 func (m *default{{.upperStartCamelObject}}Model) DeleteOneBy{{.upperField}}(ctx context.Context, {{.in}}) (int64, error) {
@@ -79,16 +72,9 @@ func (m *default{{.upperStartCamelObject}}Model) DeleteOneBy{{.upperField}}(ctx 
         },{{.keyNames}})
 
     {{else}}
-    {{/*var resp {{.upperStartCamelObject}}*/}}
-    {{/*query := fmt.Sprintf("select %s from %s where {{.originalField}} limit 1", {{.lowerStartCamelObject}}Rows, m.table)*/}}
-    {{/*err := m.conn.QueryRowCtx(ctx, &resp, query, {{.lowerStartCamelField}})*/}}
-    {{/*switch err {*/}}
-    {{/*case nil:*/}}
-    {{/*    return &resp, nil*/}}
-    {{/*case sqlx.ErrNotFound:*/}}
-    {{/*    return nil, ErrNotFound*/}}
-    {{/*default:*/}}
-    {{/*    return nil, err*/}}
-    {{/*}*/}}
+    return m.db.ExecCtx(ctx, func(ctx context.Context, db *gorm.DB) (int64, error) {
+        delTx := db.Where("{{.originalField}}", {{.lowerStartCamelField}}).Delete(&Users{})
+        return delTx.RowsAffected, delTx.Error
+    })
     {{end}}
     }
