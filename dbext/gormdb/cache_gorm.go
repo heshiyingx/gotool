@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/heshiyingx/gotool/dbext/red_lock"
+	"github.com/heshiyingx/gotool/dbext/redis_script"
 	"github.com/panjf2000/ants/v2"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/sync/singleflight"
@@ -98,8 +99,14 @@ func (cg *CacheGormDB[T, P]) QueryOneCtx(ctx context.Context, result any, key st
 		}
 		return err
 	}, func(result string, waitUpdate bool) error {
-		_, err := cg.rdb.Set(ctx, key, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
-		return err
+		if waitUpdate {
+			_, err := cg.rdb.Set(ctx, key, result, time.Second*2).Result()
+			return err
+		} else {
+			_, err := cg.rdb.Set(ctx, key, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
+			return err
+		}
+
 	})
 	if err != nil {
 		return err
@@ -118,8 +125,14 @@ func (cg *CacheGormDB[T, P]) QueryOneCtx(ctx context.Context, result any, key st
 		}
 		return nil
 	}, func(result string, waitUpdate bool) error {
-		_, err := cg.rdb.Set(ctx, primaryCacheKey, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
-		return err
+		if waitUpdate {
+			_, err = cg.rdb.Set(ctx, primaryCacheKey, result, time.Second*2).Result()
+			return err
+		} else {
+			_, err = cg.rdb.Set(ctx, primaryCacheKey, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
+			return err
+		}
+
 	})
 	return err
 }
@@ -196,8 +209,14 @@ func (cg *CacheGormDB[T, P]) QueryManyByPKsCtx(ctx context.Context, result *[]T,
 			}
 			return nil
 		}, func(result string, waitUpdate bool) error {
-			_, err := cg.rdb.Set(ctx, pkInfo.pkCacheKey, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
-			return err
+			if waitUpdate {
+				_, err := cg.rdb.Set(ctx, pkInfo.pkCacheKey, result, time.Second).Result()
+				return err
+			} else {
+				_, err := cg.rdb.Set(ctx, pkInfo.pkCacheKey, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
+				return err
+			}
+
 		})
 		if err != nil {
 			return err
@@ -263,8 +282,14 @@ func (cg *CacheGormDB[T, P]) QuerySafeSingleFromDB(ctx context.Context, key stri
 }
 func (cg *CacheGormDB[T, P]) QueryCtx(ctx context.Context, result any, key string, fn QueryCtxFn) error {
 	return cg.takeCtx(ctx, key, result, fn, func(result string, waitUpdate bool) error {
-		_, err := cg.rdb.Set(ctx, key, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
-		return err
+		if waitUpdate {
+			_, err := cg.rdb.Set(ctx, key, result, time.Second*2).Result()
+			return err
+		} else {
+			_, err := cg.rdb.Set(ctx, key, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
+			return err
+		}
+
 	})
 }
 func (cg *CacheGormDB[T, P]) DelCacheKeys(ctx context.Context, keys ...string) error {
@@ -332,12 +357,14 @@ func (cg *CacheGormDB[T, P]) ExecCtx(ctx context.Context, execFn ExecCtxFn, keys
 	}
 	for _, key := range keys {
 		cg.rdb.IncrBy(ctx, keyUpdatePrefix+key, 1)
-		cg.rdb.Decr()
 		cg.rdb.Expire(ctx, keyUpdatePrefix+key, time.Second*20)
 	}
 	result, err := execFn(ctx, cg.db)
 	if err != nil {
 		return 0, err
+	}
+	for _, key := range keys {
+		redis_script.DecrZeroDelScript.Run(ctx, cg.rdb, []string{keyUpdatePrefix + key})
 	}
 	if len(keys) > 0 {
 		err = cg.rdb.Del(ctx, keys...).Err()
