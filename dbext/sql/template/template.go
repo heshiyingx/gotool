@@ -19,12 +19,12 @@ var Vars string
 
 // Types defines a template for types in model.
 //
-//go:embed tpl/types.tpl
+//go:embed gorm_tpl/types.tpl
 var Types string
 
 // Tag defines a tag template text
 //
-//go:embed tpl/tag.tpl
+//go:embed gorm_tpl/tag.tpl
 var Tag string
 
 // TableName defines a template that generate the tableName method.
@@ -116,7 +116,7 @@ var FindOneByFieldMethod string
 
 // Field defines a filed template for types
 //
-//go:embed tpl/field.tpl
+//go:embed gorm_tpl/field.tpl
 var Field string
 
 // Error defines an error template

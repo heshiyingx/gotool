@@ -60,6 +60,7 @@ func genDeleteByPK(table Table, withCache bool) (string, string, error) {
 			"lowerStartCamelPrimaryKey": util.EscapeGolangKeyword(stringx.From(table.PrimaryKey.Fields[0].Name.ToCamel()).Untitle()),
 			"dataType":                  table.PrimaryKey.Fields[0].DataType,
 			"data":                      table,
+			"titlePrimaryKey":           table.PrimaryKey.Fields[0].Name.Title(),
 		})
 	if err != nil {
 		return "", "", err

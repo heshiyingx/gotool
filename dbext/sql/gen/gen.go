@@ -191,7 +191,7 @@ func (g *defaultGenerator) genModel(in parser.Table, withCache bool) (string, er
 		return "", err
 	}
 
-	insertCode, insertCodeMethod, err := genInsert(table, withCache)
+	insertCode, insertCodeInterface, err := genInsert(table, withCache)
 	if err != nil {
 		return "", err
 	}
@@ -204,12 +204,18 @@ func (g *defaultGenerator) genModel(in parser.Table, withCache bool) (string, er
 	if err != nil {
 		return "", err
 	}
-	findOneByUniqueKeyCode, err := genFindAndUpdateOneByUniqueKey(table, withCache)
+	uniqueKeyCode, err := genFindAndUpdateOneByUniqueKey(table, withCache)
+	if err != nil {
+		return "", err
+	}
+	var list []string
+	list = append(list, insertCodeInterface, findByPKInterface, deleteInterface, uniqueKeyCode.findOneInterfaceMethod)
+	typesCode, err := genTypes(table, strings.Join(list, "\n"), true)
 	if err != nil {
 		return "", err
 	}
 
-	return strings.Join([]string{importsCode, findOneByUniqueKeyCode.findOneMethod, deleteCode, deleteInterface, insertCode, varsCode, insertCodeMethod, findByPKCode, findByPKInterface}, ""), nil
+	return strings.Join([]string{importsCode, typesCode, insertCodeInterface, varsCode, deleteCode, deleteInterface, insertCode, varsCode, findByPKCode, findByPKInterface}, ""), nil
 
 }
 func genCacheKeys(table parser.Table) (Key, []Key) {
