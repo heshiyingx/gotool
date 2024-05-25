@@ -71,3 +71,13 @@ func wrapWithRawString(v string) string {
 
 	return v
 }
+var notNullTypeMap = map[string]string{
+	"sql.NullString":"string",
+}
+func getNotNullType(t string) string {
+	if nt,ok := notNullTypeMap[t];ok{
+		return nt
+	}
+	return t
+
+}

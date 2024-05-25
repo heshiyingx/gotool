@@ -96,7 +96,7 @@ var FindByPK string
 
 // FindOneByField defines find row by field.
 //
-//go:embed tpl/find-one-by-field.tpl
+//go:embed gorm_tpl/find-one-by-unique.tpl
 var FindOneByField string
 
 // FindOneByFieldExtraMethod defines find row by field with extras.
@@ -111,7 +111,7 @@ var FindOneMethod string
 
 // FindOneByFieldMethod defines find row by field method.
 //
-//go:embed tpl/interface-find-one-by-field.tpl
+//go:embed gorm_tpl/interface-find-one-by-unique.tpl
 var FindOneByFieldMethod string
 
 // Field defines a filed template for types
