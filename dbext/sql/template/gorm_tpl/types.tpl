@@ -6,9 +6,8 @@ type (
 	default{{.upperStartCamelObject}}Model struct {
 		{{if .withCache}}
 			db   *gormdb.CacheGormDB[{{.upperStartCamelObject}}, {{.pkType}}]
-			redisClient *redis.Client
 		{{else}}
-			{{/*conn sqlx.SqlConn*/}}
+			db   *gormdb.GormDB[{{.upperStartCamelObject}}, {{.pkType}}]
 		{{end}}
 		table string
 	}

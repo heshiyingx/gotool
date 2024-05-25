@@ -3,10 +3,13 @@ func newDefault{{.upperStartCamelObject}}Model({{if .withCache}}config gormdb.Co
     {{if .withCache}}
         cacheGormDB := gormdb.MustNewCacheGormDB[{{.upperStartCamelObject}}, {{.pkType}}](config)
         return &default{{.upperStartCamelObject}}Model{
-        db: cacheGormDB,
-        table:      {{.table}},
+            db: cacheGormDB,
         }
     {{else}}
+    gormDB := gormdb.MustNewGormDB[{{.upperStartCamelObject}}, {{.pkType}}](config)
+	return &default{{.upperStartCamelObject}}Model{
+		db: gormDB,
+    }
     {{end}}
 }
 

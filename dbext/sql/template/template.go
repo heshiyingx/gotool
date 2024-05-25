@@ -83,7 +83,7 @@ var Imports string
 
 // ImportsNoCache defines a import template for model in normal case
 //
-//go:embed tpl/import-no-cache.tpl
+//go:embed gorm_tpl/import-no-cache.tpl
 var ImportsNoCache string
 
 // FindByPK defines find row by PK.
