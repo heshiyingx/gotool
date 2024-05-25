@@ -17,6 +17,7 @@ import (
 
 const (
 	notFoundPlaceholder = "*"
+	keyUpdatePrefix     = "updating:"
 	// make the expiry unstable to avoid lots of cached items expire at the same time
 	// make the unstable expiry to be [0.95, tempd1.05] * seconds
 	expiryDeviation = 0.05
@@ -96,7 +97,7 @@ func (cg *CacheGormDB[T, P]) QueryOneCtx(ctx context.Context, result any, key st
 			return err
 		}
 		return err
-	}, func(result string) error {
+	}, func(result string, waitUpdate bool) error {
 		_, err := cg.rdb.Set(ctx, key, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
 		return err
 	})
@@ -116,7 +117,7 @@ func (cg *CacheGormDB[T, P]) QueryOneCtx(ctx context.Context, result any, key st
 			return err
 		}
 		return nil
-	}, func(result string) error {
+	}, func(result string, waitUpdate bool) error {
 		_, err := cg.rdb.Set(ctx, primaryCacheKey, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
 		return err
 	})
@@ -194,7 +195,7 @@ func (cg *CacheGormDB[T, P]) QueryManyByPKsCtx(ctx context.Context, result *[]T,
 				return err
 			}
 			return nil
-		}, func(result string) error {
+		}, func(result string, waitUpdate bool) error {
 			_, err := cg.rdb.Set(ctx, pkInfo.pkCacheKey, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
 			return err
 		})
@@ -261,7 +262,7 @@ func (cg *CacheGormDB[T, P]) QuerySafeSingleFromDB(ctx context.Context, key stri
 	}
 }
 func (cg *CacheGormDB[T, P]) QueryCtx(ctx context.Context, result any, key string, fn QueryCtxFn) error {
-	return cg.takeCtx(ctx, key, result, fn, func(result string) error {
+	return cg.takeCtx(ctx, key, result, fn, func(result string, waitUpdate bool) error {
 		_, err := cg.rdb.Set(ctx, key, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
 		return err
 	})
@@ -307,7 +308,14 @@ func (cg *CacheGormDB[T, P]) takeCtx(ctx context.Context, key string, result any
 		if err != nil {
 			return nil, err
 		}
-		err = cacheFn(string(resultBytes))
+
+		isUpdating := true
+		_, err = cg.rdb.Get(ctx, keyUpdatePrefix+key).Result()
+		if errors.Is(err, redis.Nil) {
+			isUpdating = false
+			err = nil
+		}
+		err = cacheFn(string(resultBytes), isUpdating)
 		if err != nil {
 			return nil, err
 		}
@@ -321,6 +329,11 @@ func (cg *CacheGormDB[T, P]) ExecCtx(ctx context.Context, execFn ExecCtxFn, keys
 		if err != nil {
 			return 0, err
 		}
+	}
+	for _, key := range keys {
+		cg.rdb.IncrBy(ctx, keyUpdatePrefix+key, 1)
+		cg.rdb.Decr()
+		cg.rdb.Expire(ctx, keyUpdatePrefix+key, time.Second*20)
 	}
 	result, err := execFn(ctx, cg.db)
 	if err != nil {

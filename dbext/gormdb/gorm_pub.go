@@ -24,7 +24,7 @@ const (
 )
 
 type (
-	QueryPrimaryKeyFn[P int64 | uint64 | string]       func(ctx context.Context, p *P, db *gorm.DB) error
+	QueryPrimaryKeyFn[P int64 | uint64 | string] func(ctx context.Context, p *P, db *gorm.DB) error
 	//QueryModelFn[T any]                                func(ctx context.Context, r *T, db *gorm.DB) error
 	QueryModelByPKFn[T any, P int64 | uint64 | string] func(ctx context.Context, r *T, p P, db *gorm.DB) error
 
@@ -34,7 +34,7 @@ type (
 
 	QueryCtxFn func(ctx context.Context, r any, db *gorm.DB) error
 	ExecCtxFn  func(ctx context.Context, db *gorm.DB) (int64, error)
-	CacheFn    func(result string) error
+	CacheFn    func(result string, waitUpdate bool) error
 	Config     struct {
 		DSN               string
 		DBType            DBType
