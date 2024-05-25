@@ -10,6 +10,7 @@ import (
 	"github.com/heshiyingx/gotool/util/pathext"
 	stringx "github.com/heshiyingx/gotool/util/stringext"
 	goformat "go/format"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -92,6 +93,9 @@ type Table struct {
 
 // NewDefaultGenerator creates an instance for defaultGenerator
 func NewDefaultGenerator(dir string, cfg *Config, opt ...Option) (*defaultGenerator, error) {
+	if cfg == nil {
+		cfg = &Config{NamingFormat: "go-zero"}
+	}
 	if dir == "" {
 		dir = pwd
 	}
@@ -155,6 +159,7 @@ func (g *defaultGenerator) createFile(modelList map[string]*codeTuple) error {
 	}
 
 	g.dir = dirAbs
+	log.Println("位置:", dirAbs)
 	g.pkg = util.SafeString(filepath.Base(dirAbs))
 	err = pathext.MkdirIfNotExist(dirAbs)
 	if err != nil {
