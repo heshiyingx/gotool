@@ -26,7 +26,7 @@ const (
 	updateTemplateFile                    = "update.tpl"
 	updateMethodTemplateFile              = "interface-update.tpl"
 	varTemplateFile                       = "var.tpl"
-	errTemplateFile                       = "err.tpl"
+	VarFileTemplateFile                   = "var_file.tpl"
 )
 
 var templates = map[string]string{
@@ -52,5 +52,5 @@ var templates = map[string]string{
 	updateTemplateFile:                    template.Update,
 	updateMethodTemplateFile:              template.UpdateMethod,
 	varTemplateFile:                       template.Vars,
-	errTemplateFile:                       template.Error,
+	VarFileTemplateFile:                   template.VarFile,
 }

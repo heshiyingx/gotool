@@ -200,7 +200,7 @@ func (g *defaultGenerator) createFile(modelList map[string]*codeTuple) error {
 	}
 
 	filename := filepath.Join(dirAbs, varFilename+".go")
-	text := template.Error
+	text := template.VarFile
 	//text, err := pathx.LoadTemplate(category, errTemplateFile, template.Error)
 	//if err != nil {
 	//	return err
