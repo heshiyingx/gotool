@@ -29,17 +29,17 @@ var Tag string
 
 // TableName defines a template that generate the tableName method.
 //
-//go:embed tpl/table-name.tpl
+//go:embed gorm_tpl/table-name.tpl
 var TableName string
 
 // New defines the template for creating model instance.
 //
-//go:embed tpl/model-new.tpl
+//go:embed gorm_tpl/model-new.tpl
 var New string
 
 // ModelCustom defines a template for extension
 //
-//go:embed tpl/model.tpl
+//go:embed gorm_tpl/model.tpl
 var ModelCustom string
 
 // ModelGen defines a template for model
@@ -50,10 +50,7 @@ package {{.pkg}}
 {{.vars}}
 {{.types}}
 {{.new}}
-{{.delete}}
-{{.find}}
-{{.insert}}
-{{.update}}
+{{.opCode}}
 {{.extraMethod}}
 {{.tableName}}
 {{.customized}}
@@ -71,12 +68,12 @@ var InsertMethod string
 
 // Update defines a template for generating update codes
 //
-//go:embed tpl/update.tpl
+//go:embed gorm_tpl/update_by_pk.tpl
 var Update string
 
 // UpdateMethod defines an interface method template for generating update codes
 //
-//go:embed tpl/interface-update.tpl
+//go:embed gorm_tpl/interface-update-by-pk.tpl
 var UpdateMethod string
 
 // Imports defines a import template for model in cache case

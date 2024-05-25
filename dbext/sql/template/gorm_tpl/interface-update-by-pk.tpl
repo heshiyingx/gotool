@@ -1,0 +1,1 @@
+UpdateBy{{.titlePrimaryKey}}(ctx context.Context, {{.lowerStartCamelPrimaryKey}} {{.dataType}},updateObj *{{.upperStartCamelObject}},fields ...string) (int64, error)

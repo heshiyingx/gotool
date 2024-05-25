@@ -22,7 +22,7 @@ func TestNewDefaultGenerator(t *testing.T) {
 		return
 	}
 	for _, e := range tables {
-		code, err := generator.genModel(*e, withCache)
+		gencode, customerCode, err := generator.genModel(*e, withCache)
 		if err != nil {
 			t.Error(err)
 			return
@@ -33,9 +33,25 @@ func TestNewDefaultGenerator(t *testing.T) {
 		//}
 
 		m[e.Name.Source()] = &codeTuple{
-			modelCode:       code,
-			modelCustomCode: "",
+			modelCode:       gencode,
+			modelCustomCode: customerCode,
 		}
 	}
 	t.Log(m)
+}
+func TestDefaultGenerator_StartFromDDL(t *testing.T) {
+	generator, err := NewDefaultGenerator(".", nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	filename := "/Users/john/study/code/gocode/test2/sqld/user.sql"
+	//database := "database"
+	strict := true
+	withCache := true
+	err = generator.StartFromDDL(filename, withCache, strict, "")
+	if err != nil {
+		t.Error(err)
+		return
+	}
 }

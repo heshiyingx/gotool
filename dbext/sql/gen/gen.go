@@ -9,6 +9,7 @@ import (
 	"github.com/heshiyingx/gotool/util/format"
 	"github.com/heshiyingx/gotool/util/pathext"
 	stringx "github.com/heshiyingx/gotool/util/stringext"
+	goformat "go/format"
 	"os"
 	"path/filepath"
 	"sort"
@@ -41,6 +42,20 @@ type Option func(generator *defaultGenerator)
 type codeTuple struct {
 	modelCode       string
 	modelCustomCode string
+}
+type code struct {
+	importsCode string
+	varsCode    string
+	typesCode   string
+	newCode     string
+	opCode      string
+	//insertCode     string
+	//findCode       []string
+	//updateCode     string
+	//deleteCode     string
+	cacheExtra     string
+	tableName      string
+	customizedCode string
 }
 
 // Key describes cache key
@@ -107,7 +122,32 @@ func newDefaultOption() Option {
 		generator.Console = console.NewColorConsole()
 	}
 }
+func (g *defaultGenerator) StartFromDDL(filename string, withCache, strict bool, database string) error {
+	modeList, err := g.genFromDDL(filename, withCache, strict, database)
+	if err != nil {
+		return err
+	}
+	return g.createFile(modeList)
+}
+func (g *defaultGenerator) genFromDDL(filename string, withCache, strict bool, database string) (map[string]*codeTuple, error) {
+	m := make(map[string]*codeTuple)
 
+	tables, err := parser.Parse(filename, database, strict)
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range tables {
+		gencode, customerCode, err := g.genModel(*e, withCache)
+		if err != nil {
+			return nil, err
+		}
+		m[e.Name.Source()] = &codeTuple{
+			modelCode:       gencode,
+			modelCustomCode: customerCode,
+		}
+	}
+	return m, nil
+}
 func (g *defaultGenerator) createFile(modelList map[string]*codeTuple) error {
 	dirAbs, err := filepath.Abs(g.dir)
 	if err != nil {
@@ -172,9 +212,9 @@ func (g *defaultGenerator) createFile(modelList map[string]*codeTuple) error {
 	return nil
 }
 
-func (g *defaultGenerator) genModel(in parser.Table, withCache bool) (string, error) {
+func (g *defaultGenerator) genModel(in parser.Table, withCache bool) (string, string, error) {
 	primaryKey, uniqueKey := genCacheKeys(in)
-
+	dbModelOpCode := make([]string, 0)
 	var table Table
 	table.Table = in
 	table.PrimaryCacheKey = primaryKey
@@ -184,40 +224,106 @@ func (g *defaultGenerator) genModel(in parser.Table, withCache bool) (string, er
 
 	importsCode, err := genImports(table, withCache, in.ContainsTime())
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	varsCode, err := genVars(table, withCache, g.isPostgreSql)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	insertCode, insertCodeInterface, err := genInsert(table, withCache)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	findByPKCode, findByPKInterface, err := genFindPK(table, withCache)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
+	updateByPKCode, updateByPKInterface, err := genUpdateByPK(table, withCache)
+	if err != nil {
+		return "", "", err
+	}
+
 	deleteCode, deleteInterface, err := genDeleteByPK(table, withCache)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	uniqueKeyCode, err := genFindAndUpdateOneByUniqueKey(table, withCache)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	var list []string
-	list = append(list, insertCodeInterface, findByPKInterface, deleteInterface, uniqueKeyCode.findOneInterfaceMethod)
+	list = append(list, insertCodeInterface, findByPKInterface, updateByPKInterface, deleteInterface, uniqueKeyCode.findOneInterfaceMethod)
 	typesCode, err := genTypes(table, strings.Join(list, "\n"), true)
+	if err != nil {
+		return "", "", err
+	}
+	defaultModelNewCode, err := genNew(table, withCache)
+	if err != nil {
+		return "", "", err
+	}
+	customCode, err := genModelCustom(in, withCache, g.pkg)
+	if err != nil {
+		return "", "", err
+	}
+	tableName, err := genTableName(table)
+	if err != nil {
+		return "", "", err
+	}
+	dbModelOpCode = append(dbModelOpCode, insertCode, findByPKCode, updateByPKCode, deleteCode, uniqueKeyCode.findOneMethod)
+	codeInfo := &code{
+		importsCode: importsCode,
+		varsCode:    varsCode,
+		typesCode:   typesCode,
+		newCode:     defaultModelNewCode,
+		opCode:      strings.Join(dbModelOpCode, "\n"),
+		//insertCode:     insertCode,
+		//findCode:       findCode,
+		//updateCode:     updateCode,
+		//deleteCode:     deleteCode,
+		//cacheExtra:     ret.cacheExtra,
+		tableName: tableName,
+		//customizedCode: customizedCode,
+	}
+	//fmt.Println(codeInfo)
+	genCode, err := g.genGenCode(table, codeInfo)
+	if err != nil {
+		return "", "", err
+	}
+
+	return genCode, customCode, nil
+}
+func (g *defaultGenerator) genGenCode(table Table, code *code) (string, error) {
+	text, err := pathext.LoadTemplate(category, modelGenTemplateFile, template.ModelGen)
 	if err != nil {
 		return "", err
 	}
-
-	return strings.Join([]string{importsCode, typesCode, insertCodeInterface, varsCode, deleteCode, deleteInterface, insertCode, varsCode, findByPKCode, findByPKInterface}, ""), nil
-
+	t := util.With("model").
+		Parse(text).
+		GoFmt(true)
+	output, err := t.Execute(map[string]any{
+		"pkg":         g.pkg,
+		"imports":     code.importsCode,
+		"vars":        code.varsCode,
+		"types":       code.typesCode,
+		"new":         code.newCode,
+		"opCode":      code.opCode,
+		"extraMethod": code.cacheExtra,
+		"tableName":   code.tableName,
+		"data":        table,
+		"customized":  code.customizedCode,
+	})
+	if err != nil {
+		return "", err
+	}
+	source, err := goformat.Source(output.Bytes())
+	if err != nil {
+		return "", err
+	}
+	return string(source), nil
 }
+
 func genCacheKeys(table parser.Table) (Key, []Key) {
 	var primaryKey Key
 	var uniqueKey []Key

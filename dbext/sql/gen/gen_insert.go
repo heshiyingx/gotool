@@ -59,6 +59,7 @@ func genInsert(table Table, withCache bool) (string, string, error) {
 			"upperStartCamelObject": camel,
 			"lowerStartCamelObject": stringx.From(camel).Untitle(),
 			"pkCacheKey":            pkCacheKey,
+			"pkDataType":            table.PrimaryKey.Fields[0].DataType,
 			"pkCacheKeyExpression":  pkCacheKeyExpression,
 			"keysLen":               len(keys) + 1,
 			//"expression":            strings.Join(expressions, ", "),
