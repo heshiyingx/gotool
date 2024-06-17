@@ -40,7 +40,7 @@ func TestNewDefaultGenerator(t *testing.T) {
 	t.Log(m)
 }
 func TestDefaultGenerator_StartFromDDL(t *testing.T) {
-	generator, err := NewDefaultGenerator(".", nil)
+	generator, err := NewDefaultGenerator("./model2", nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -48,7 +48,7 @@ func TestDefaultGenerator_StartFromDDL(t *testing.T) {
 	filename := "/Users/john/study/code/gocode/test2/sqld/user.sql"
 	//database := "database"
 	strict := false
-	withCache := false
+	withCache := true
 	err = generator.StartFromDDL(filename, withCache, strict, "ab")
 	if err != nil {
 		t.Error(err)

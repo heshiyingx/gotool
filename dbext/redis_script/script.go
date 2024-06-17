@@ -19,6 +19,12 @@ else
 end
 `)
 
+var IncrExpireScript = redis.NewScript(`
+local incrValue = redis.call("INCRBY", KEYS[1], 1)
+redis.call("EXPIRE",KEYS[1], ARGV[1])
+return incrValue
+`)
+
 // DecrZeroDelScript 如果值小于等于0，就删除key
 var DecrZeroDelScript = redis.NewScript(`
 local value = redis.call("DECR", KEYS[1])

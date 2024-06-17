@@ -81,3 +81,20 @@ func Test_SafeDECRScript(t *testing.T) {
 	time.Sleep(time.Minute)
 
 }
+func Test_IncrExpireScript(t *testing.T) {
+	client := redis.NewClient(&redis.Options{
+		Addr:     ":6379",
+		Password: "root",
+		DB:       0,
+	})
+	_, err := client.Ping(context.Background()).Result()
+	if err != nil {
+		t.Error(err)
+	}
+	result, err := IncrExpireScript.Run(context.Background(), client, []string{"incr_demo"}, []interface{}{10}).Result()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	t.Log(result)
+}

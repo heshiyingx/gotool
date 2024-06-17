@@ -4,8 +4,9 @@ import (
 	"github.com/heshiyingx/gotool/dbext/gormdb"
 )
 {{else}}
-
-
+import (
+	 "github.com/heshiyingx/gotool/dbext/gormdb"
+)
 {{end}}
 var _ {{.upperStartCamelObject}}DBInterface = (*custom{{.upperStartCamelObject}}DB)(nil)
 
