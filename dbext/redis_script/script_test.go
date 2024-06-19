@@ -91,7 +91,7 @@ func Test_IncrExpireScript(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	result, err := IncrExpireScript.Run(context.Background(), client, []string{"incr_demo"}, []interface{}{10}).Result()
+	result, err := IncrExpireScript.Run(context.Background(), client, []string{"incr_demo"}, []interface{}{100}).Result()
 	if err != nil {
 		t.Error(err)
 		return

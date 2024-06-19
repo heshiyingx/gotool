@@ -20,7 +20,8 @@ end
 `)
 
 var IncrExpireScript = redis.NewScript(`
-local incrValue = redis.call("INCRBY", KEYS[1], 1)
+local incrValue = redis.call("SET", KEYS[1], 0,"NX","EX",tonumber(ARGV[1]))
+redis.call("INCRBY",KEYS[1], 1)
 redis.call("EXPIRE",KEYS[1], ARGV[1])
 return incrValue
 `)

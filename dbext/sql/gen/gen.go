@@ -158,7 +158,7 @@ func (g *defaultGenerator) createFile(modelList map[string]*codeTuple) error {
 	}
 
 	g.dir = dirAbs
-	log.Println("位置:", dirAbs)
+	log.Println("代码生成位置:", dirAbs)
 	g.pkg = util.SafeString(filepath.Base(dirAbs))
 	err = pathext.MkdirIfNotExist(dirAbs)
 	if err != nil {
