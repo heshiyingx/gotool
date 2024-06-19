@@ -1,0 +1,1 @@
+`db:"{{.field}}" gorm:"column:{{.field}}" json:"{{.field}},omitempty"`
