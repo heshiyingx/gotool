@@ -103,8 +103,15 @@ func (cg *CacheGormDB[T, P]) QueryOneCtx(ctx context.Context, result any, key st
 			_, err := cg.rdb.Set(ctx, key, result, time.Second*2).Result()
 			return err
 		} else {
-			_, err := cg.rdb.Set(ctx, key, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
-			return err
+			isSet, err := cg.rdb.SetNX(ctx, key, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
+			if err != nil {
+				return err
+			}
+			if !isSet {
+				_, err = cg.rdb.Set(ctx, key, result, time.Second*2).Result()
+				return err
+			}
+			return nil
 		}
 
 	})
@@ -129,8 +136,16 @@ func (cg *CacheGormDB[T, P]) QueryOneCtx(ctx context.Context, result any, key st
 			_, err = cg.rdb.Set(ctx, primaryCacheKey, result, time.Second*2).Result()
 			return err
 		} else {
-			_, err = cg.rdb.Set(ctx, primaryCacheKey, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
-			return err
+			isSet, err := cg.rdb.SetNX(ctx, primaryCacheKey, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
+			if err != nil {
+				return err
+			}
+			if !isSet {
+				_, err = cg.rdb.Set(ctx, primaryCacheKey, result, time.Second*2).Result()
+				return err
+			}
+			return nil
+
 		}
 
 	})
@@ -213,8 +228,15 @@ func (cg *CacheGormDB[T, P]) QueryManyByPKsCtx(ctx context.Context, result *[]T,
 				_, err := cg.rdb.Set(ctx, pkInfo.pkCacheKey, result, time.Second).Result()
 				return err
 			} else {
-				_, err := cg.rdb.Set(ctx, pkInfo.pkCacheKey, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
-				return err
+				isSet, err := cg.rdb.SetNX(ctx, pkInfo.pkCacheKey, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
+				if err != nil {
+					return err
+				}
+				if !isSet {
+					_, err = cg.rdb.Set(ctx, pkInfo.pkCacheKey, result, time.Second*2).Result()
+					return err
+				}
+				return nil
 			}
 
 		})
@@ -275,7 +297,14 @@ func (cg *CacheGormDB[T, P]) QuerySafeSingleFromDB(ctx context.Context, key stri
 			if err != nil {
 				return err
 			}
-			_, err = cg.rdb.Set(ctx, key, resultBytes, genDuring(expire, cg.randSec)).Result()
+			isSet, err := cg.rdb.SetNX(ctx, key, string(resultBytes), genDuring(expire, cg.randSec)).Result()
+			if err != nil {
+				return err
+			}
+			if !isSet {
+				_, err = cg.rdb.Set(ctx, key, string(resultBytes), time.Second*2).Result()
+				return err
+			}
 			return nil
 		}
 	}
@@ -286,8 +315,16 @@ func (cg *CacheGormDB[T, P]) QueryCtx(ctx context.Context, result any, key strin
 			_, err := cg.rdb.Set(ctx, key, result, time.Second*2).Result()
 			return err
 		} else {
-			_, err := cg.rdb.Set(ctx, key, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
-			return err
+			isSet, err := cg.rdb.SetNX(ctx, key, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
+			if err != nil {
+				return err
+			}
+			if !isSet {
+				_, err = cg.rdb.Set(ctx, key, result, time.Second*2).Result()
+				return err
+			}
+			return nil
+
 		}
 
 	})
