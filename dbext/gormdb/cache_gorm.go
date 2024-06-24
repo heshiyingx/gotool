@@ -425,14 +425,17 @@ func (cg *CacheGormDB[T, P]) ExecCtx(ctx context.Context, execFn ExecCtxFn, keys
 			return 0, err
 		}
 	}
+	defer func() {
+		for _, key := range keys {
+			_, _ = redis_script.DecrZeroDelScript.Run(ctx, cg.rdb, []string{keyUpdatePrefix + key}).Result()
+
+		}
+	}()
 	result, err := execFn(ctx, cg.db)
 	if err != nil {
 		return 0, err
 	}
-	for _, key := range keys {
-		_, _ = redis_script.DecrZeroDelScript.Run(ctx, cg.rdb, []string{keyUpdatePrefix + key}).Result()
 
-	}
 	if len(keys) > 0 {
 		err = cg.rdb.Del(ctx, keys...).Err()
 		if err != nil {
