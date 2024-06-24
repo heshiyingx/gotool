@@ -17,12 +17,13 @@ const timeImport = "time.Time"
 type (
 	// Table describes a mysql table
 	Table struct {
-		Name        stringx.String
-		Db          stringx.String
-		PrimaryKey  Primary
-		UniqueIndex map[string][]*Field
-		Fields      []*Field
-		ContainsPQ  bool
+		Name              stringx.String
+		Db                stringx.String
+		PrimaryKey        Primary
+		UniqueIndex       map[string][]*Field
+		Fields            []*Field
+		ContainsPQ        bool
+		ContainsNullField bool
 	}
 
 	// Primary describes a primary key
@@ -123,7 +124,7 @@ func Parse(filename, database string, strict bool) ([]*Table, error) {
 
 		delete(uniqueKeyMap, indexNameGen(primaryColumn, "idx"))
 		delete(uniqueKeyMap, indexNameGen(primaryColumn, "unique"))
-		primaryKey, fieldM, err := convertColumns(columns, primaryColumnSet, strict)
+		primaryKey, fieldM, isContaindNull, err := convertColumns(columns, primaryColumnSet, strict)
 		if err != nil {
 			return nil, err
 		}
@@ -153,11 +154,12 @@ func Parse(filename, database string, strict bool) ([]*Table, error) {
 		checkDuplicateUniqueIndex(uniqueIndex, e.Name)
 
 		list = append(list, &Table{
-			Name:        stringx.From(e.Name),
-			Db:          stringx.From(database),
-			PrimaryKey:  primaryKey,
-			UniqueIndex: uniqueIndex,
-			Fields:      fields,
+			Name:              stringx.From(e.Name),
+			Db:                stringx.From(database),
+			PrimaryKey:        primaryKey,
+			UniqueIndex:       uniqueIndex,
+			Fields:            fields,
+			ContainsNullField: isContaindNull,
 		})
 	}
 
@@ -195,7 +197,7 @@ func checkDuplicateUniqueIndex(uniqueIndex map[string][]*Field, tableName string
 		uniqueSet.Add(joinRet)
 	}
 }
-func convertColumns(columns []*parser.Column, primaryColumn *collection2.SortSet[string], strict bool) (Primary, map[string]*Field, error) {
+func convertColumns(columns []*parser.Column, primaryColumn *collection2.SortSet[string], strict bool) (Primary, map[string]*Field, bool, error) {
 	var (
 		primaryKey Primary
 		fieldM     = make(map[string]*Field)
@@ -205,6 +207,7 @@ func convertColumns(columns []*parser.Column, primaryColumn *collection2.SortSet
 	primaryKey = Primary{
 		Fields: make([]*Field, primaryColumn.Count()),
 	}
+	isContaindNull := false
 	for _, column := range columns {
 		if column == nil {
 			continue
@@ -229,10 +232,13 @@ func convertColumns(columns []*parser.Column, primaryColumn *collection2.SortSet
 			}
 
 		}
+		if isDefaultNull {
+			isContaindNull = true
+		}
 
 		dataType, thirdPkg, err := converter.ConvertDataType(column.DataType.Type(), isDefaultNull, column.DataType.Unsigned(), strict)
 		if err != nil {
-			return Primary{}, nil, err
+			return Primary{}, nil, false, err
 		}
 
 		//if column.Constraint != nil {
@@ -265,7 +271,7 @@ func convertColumns(columns []*parser.Column, primaryColumn *collection2.SortSet
 
 		fieldM[field.Name.Source()] = &field
 	}
-	return primaryKey, fieldM, nil
+	return primaryKey, fieldM, isContaindNull, nil
 }
 func (t *Table) ContainsTime() bool {
 	for _, item := range t.Fields {

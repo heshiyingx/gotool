@@ -13,6 +13,7 @@ import (
 	"gorm.io/gorm"
 	"log"
 	"math/rand"
+	"runtime"
 	"time"
 )
 
@@ -33,6 +34,7 @@ type (
 		randSec           int
 		db                *gorm.DB
 		antPool           *ants.Pool
+		//antFailChan       chan []string
 	}
 	pkInfoDefine[P int64 | uint64 | string] struct {
 		pkCacheKey string
@@ -68,11 +70,11 @@ func NewCacheGormDB[T any, P int64 | uint64 | string](c Config) (*CacheGormDB[T,
 	if err != nil {
 		return nil, err
 	}
-	pool, err := ants.NewPool(20, ants.WithExpiryDuration(time.Minute*5))
+	pool, err := ants.NewPool(runtime.NumCPU(), ants.WithExpiryDuration(time.Minute*5))
 	if err != nil {
 		return nil, err
 	}
-	return &CacheGormDB[T, P]{
+	cacheGromDB := &CacheGormDB[T, P]{
 		rdb:               c.Rdb,
 		singleFlight:      &singleflight.Group{},
 		notFoundExpireSec: c.NotFoundExpireSec,
@@ -80,7 +82,32 @@ func NewCacheGormDB[T any, P int64 | uint64 | string](c Config) (*CacheGormDB[T,
 		randSec:           c.RandSec,
 		db:                db,
 		antPool:           pool,
-	}, nil
+		//antFailChan:       make(chan []string, 20000),
+	}
+	if c.PreFunc != nil {
+		c.PreFunc(cacheGromDB.db)
+	}
+	//go func() {
+	//	for {
+	//		keys, ok := <-cacheGromDB.antFailChan
+	//		if !ok {
+	//			break
+	//		}
+	//		if len(keys) > 0 {
+	//			err = cacheGromDB.antPool.Submit(func() {
+	//				err = cacheGromDB.rdb.Del(context.Background(), keys...).Err()
+	//				if err != nil {
+	//					log.Printf("ant pool task doing err:%v", err)
+	//					cacheGromDB.antFailChan <- keys
+	//				}
+	//			})
+	//			if err != nil {
+	//				log.Printf("ant pool task antFailChan Submit err:%v", err)
+	//			}
+	//		}
+	//	}
+	//}()
+	return cacheGromDB, nil
 }
 
 /*---------------*/
@@ -414,18 +441,19 @@ func (cg *CacheGormDB[T, P]) ExecCtx(ctx context.Context, execFn ExecCtxFn, keys
 	}
 	if len(keys) > 0 {
 		err = cg.antPool.Submit(func() {
-			deadline, cancelFunc := context.WithDeadline(ctx, time.Now().Add(time.Millisecond*300))
+			deadline, cancelFunc := context.WithDeadline(ctx, time.Now().Add(time.Second))
 			defer cancelFunc()
 			select {
 			case <-deadline.Done():
 			}
 			err = cg.rdb.Del(ctx, keys...).Err()
 			if err != nil {
-				log.Fatalf("ant pool task doing err:%v", err)
+				log.Printf("ant pool task doing err:%v", err)
+				//cg.antFailChan <- keys
 			}
 		})
 		if err != nil {
-			log.Fatalf("ant pool task Submit err:%v", err)
+			log.Printf("ant pool task Submit err:%v", err)
 		}
 	}
 

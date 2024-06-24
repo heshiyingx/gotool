@@ -1,6 +1,6 @@
 import (
 	"context"
-	"database/sql"
+	{{if .table.ContainsNullField}}"database/sql"{{end}}
 	"fmt"
 	"strings"
 	{{if .time}}"time"{{end}}

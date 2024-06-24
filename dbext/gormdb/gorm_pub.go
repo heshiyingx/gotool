@@ -43,6 +43,7 @@ type (
 		NotFoundExpireSec int
 		CacheExpireSec    int
 		RandSec           int
+		PreFunc           func(db *gorm.DB)
 	}
 )
 
