@@ -368,7 +368,7 @@ func (cg *CacheGormDB[T, P]) DelCacheKeys(ctx context.Context, keys ...string) e
 func (cg *CacheGormDB[T, P]) takeCtx(ctx context.Context, key string, result any, query QueryCtxFn, cacheFn CacheFn) error {
 
 	_, err, _ := cg.singleFlight.Do(key, func() (interface{}, error) {
-		fmt.Println("进入redis缓存")
+		//fmt.Println("进入redis缓存")
 		val, err := cg.rdb.Get(ctx, key).Result()
 		if errors.Is(err, redis.Nil) {
 			err = nil
