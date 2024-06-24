@@ -34,7 +34,7 @@ type (
 		randSec           int
 		db                *gorm.DB
 		antPool           *ants.Pool
-		antFailChan       chan []string
+		//antFailChan       chan []string
 	}
 	pkInfoDefine[P int64 | uint64 | string] struct {
 		pkCacheKey string
@@ -82,31 +82,31 @@ func NewCacheGormDB[T any, P int64 | uint64 | string](c Config) (*CacheGormDB[T,
 		randSec:           c.RandSec,
 		db:                db,
 		antPool:           pool,
-		antFailChan:       make(chan []string, 20000),
+		//antFailChan:       make(chan []string, 20000),
 	}
 	if c.PreFunc != nil {
 		c.PreFunc(cacheGromDB.db)
 	}
-	go func() {
-		for {
-			keys, ok := <-cacheGromDB.antFailChan
-			if !ok {
-				break
-			}
-			if len(keys) > 0 {
-				err = cacheGromDB.antPool.Submit(func() {
-					err = cacheGromDB.rdb.Del(context.Background(), keys...).Err()
-					if err != nil {
-						log.Printf("ant pool task doing err:%v", err)
-						cacheGromDB.antFailChan <- keys
-					}
-				})
-				if err != nil {
-					log.Printf("ant pool task antFailChan Submit err:%v", err)
-				}
-			}
-		}
-	}()
+	//go func() {
+	//	for {
+	//		keys, ok := <-cacheGromDB.antFailChan
+	//		if !ok {
+	//			break
+	//		}
+	//		if len(keys) > 0 {
+	//			err = cacheGromDB.antPool.Submit(func() {
+	//				err = cacheGromDB.rdb.Del(context.Background(), keys...).Err()
+	//				if err != nil {
+	//					log.Printf("ant pool task doing err:%v", err)
+	//					cacheGromDB.antFailChan <- keys
+	//				}
+	//			})
+	//			if err != nil {
+	//				log.Printf("ant pool task antFailChan Submit err:%v", err)
+	//			}
+	//		}
+	//	}
+	//}()
 	return cacheGromDB, nil
 }
 
@@ -449,7 +449,7 @@ func (cg *CacheGormDB[T, P]) ExecCtx(ctx context.Context, execFn ExecCtxFn, keys
 			err = cg.rdb.Del(ctx, keys...).Err()
 			if err != nil {
 				log.Printf("ant pool task doing err:%v", err)
-				cg.antFailChan <- keys
+				//cg.antFailChan <- keys
 			}
 		})
 		if err != nil {

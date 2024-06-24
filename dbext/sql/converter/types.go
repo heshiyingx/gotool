@@ -19,9 +19,9 @@ var commonMysqlDataTypeMapInt = map[int]string{
 	// For consistency, all integer types are converted to int64
 	// number
 	parser.Bit:       "byte",
-	parser.TinyInt:   "int64",
-	parser.SmallInt:  "int64",
-	parser.MediumInt: "int64",
+	parser.TinyInt:   "int8",
+	parser.SmallInt:  "int16",
+	parser.MediumInt: "int32",
 	parser.Int:       "int64",
 	parser.MiddleInt: "int64",
 	parser.Int1:      "int64",
