@@ -171,7 +171,7 @@ func TestCacheGormDB_ExecCtx(t *testing.T) {
 		Addr:     ":6379",
 		Password: "root",
 	})
-	cacheGormDB := MustNewCacheGormDB[Users, int64](Config{
+	cacheGormDB := MustNewCacheGormDB[string, int64](Config{
 		DSN:    "root:root@tcp(127.0.0.1:3306)/im_server?charset=utf8mb4&parseTime=True&loc=Local",
 		DBType: DBTYPE_MySQL,
 		GormConfig: gorm.Config{
@@ -201,12 +201,29 @@ func TestCacheGormDB_ExecCtx(t *testing.T) {
 	if err != nil {
 		return
 	}
-	pkCacheKey := fmt.Sprintf("%v%v", cacheUsersPKPrefix, pkValue)
-	cacheGormDB.ExecCtx(context.Background(), func(ctx context.Context, db *gorm.DB) (int64, error) {
-		udb := db.Model(&Users{}).Where("app_id = ? and third_user_id = ?", appId, thirdUserID).Update("person_msg_read_seq", 10)
-		return udb.RowsAffected, udb.Error
-	}, usersAppIdAccountKey, pkCacheKey)
-	time.Sleep(time.Second * 3)
-	fmt.Println("删除")
+	for i := 0; i < 100; i++ {
+		var ret []string
+		cacheGormDB.QuerySlicesCtxCustom(context.Background(), &ret, "sliceCache", func(ctx context.Context, r *[]string, db *gorm.DB) error {
+			*r = append(*r, "1", "2", "3", "4", "5", "6")
+			fmt.Println("-------------DB-------------查询")
+			return nil
+		}, func(ctx context.Context, r *[]string, rdb redis.UniversalClient) (bool, error) {
+			result, err := rdb.SRandMember(ctx, "sliceCache").Result()
+			if err != nil {
+				return false, err
+			}
+			*r = append(*r, result)
+			return true, nil
+		})
+		fmt.Println(ret)
+	}
+	//pkCacheKey := fmt.Sprintf("%v%v", cacheUsersPKPrefix, pkValue)
+
+	//cacheGormDB.ExecCtx(context.Background(), func(ctx context.Context, db *gorm.DB) (int64, error) {
+	//	udb := db.Model(&Users{}).Where("app_id = ? and third_user_id = ?", appId, thirdUserID).Update("person_msg_read_seq", 10)
+	//	return udb.RowsAffected, udb.Error
+	//}, usersAppIdAccountKey, pkCacheKey)
+	//time.Sleep(time.Second * 3)
+	//fmt.Println("删除")
 
 }

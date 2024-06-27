@@ -25,6 +25,8 @@ const (
 	expiryDeviation = 0.05
 )
 
+var TypeErr = errors.New("type is err")
+
 type (
 	CacheGormDB[T any, P int64 | uint64 | string] struct {
 		rdb               redis.UniversalClient
@@ -356,6 +358,75 @@ func (cg *CacheGormDB[T, P]) QueryCtx(ctx context.Context, result any, key strin
 
 	})
 }
+func (cg *CacheGormDB[T, P]) QuerySlicesCtxCustom(ctx context.Context, result *[]T, key string, queryDBFn QuerySlicesFn[T], queryCacheFn QueryCacheSlicesCtxFn[T]) error {
+
+	_, err, _ := cg.singleFlight.Do(key, func() (interface{}, error) {
+		tString, err := cg.rdb.Type(ctx, key).Result()
+		if err != nil {
+			return nil, err
+		}
+		if tString == "string" {
+			return nil, gorm.ErrRecordNotFound
+		} else if tString == "set" {
+			isSuccess, err := queryCacheFn(ctx, result, cg.rdb)
+			if isSuccess {
+				return result, nil
+			}
+			if err != nil {
+				if errors.Is(err, redis.Nil) {
+					err = nil
+				} else {
+					return nil, err
+				}
+			}
+		} else if tString != "none" {
+			return nil, TypeErr
+		}
+
+		err = queryDBFn(ctx, result, cg.db)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				err = cg.setCacheWithNotFound(ctx, key)
+				if cg.db.Logger != nil && err != nil {
+					cg.db.Logger.Error(ctx, "setCacheWithNotFound err: %v key:%v", err, key)
+				}
+				return nil, gorm.ErrRecordNotFound
+			} else {
+				return nil, err
+			}
+
+		}
+		if result == nil || len(*result) == 0 {
+			err = cg.setCacheWithNotFound(ctx, key)
+			if cg.db.Logger != nil && err != nil {
+				cg.db.Logger.Error(ctx, "setCacheWithNotFound err: %v key:%v", err, key)
+			}
+			return nil, gorm.ErrRecordNotFound
+		}
+		results := make([]interface{}, 0, len(*result))
+		for _, element := range *result {
+			retStr, err := json.Marshal(element)
+			if err != nil {
+				return nil, err
+			}
+			results = append(results, retStr)
+		}
+		_, err = cg.rdb.SAdd(ctx, key, results...).Result()
+		if err != nil {
+			return nil, err
+		}
+		cg.rdb.Expire(ctx, key, genDuring(cg.cacheExpireSec, cg.randSec))
+		*result = nil
+		isSuccess, err := queryCacheFn(ctx, result, cg.rdb)
+		if isSuccess {
+			return result, nil
+		}
+		return result, err
+
+	})
+	return err
+
+}
 func (cg *CacheGormDB[T, P]) DelCacheKeys(ctx context.Context, keys ...string) error {
 	if len(keys) == 0 {
 		return nil
@@ -370,9 +441,14 @@ func (cg *CacheGormDB[T, P]) takeCtx(ctx context.Context, key string, result any
 	_, err, _ := cg.singleFlight.Do(key, func() (interface{}, error) {
 		//fmt.Println("进入redis缓存")
 		val, err := cg.rdb.Get(ctx, key).Result()
-		if errors.Is(err, redis.Nil) {
-			err = nil
+		if err != nil {
+			if errors.Is(err, redis.Nil) {
+				err = nil
+			} else {
+				return nil, err
+			}
 		}
+
 		if val == notFoundPlaceholder {
 			return nil, gorm.ErrRecordNotFound
 		}
