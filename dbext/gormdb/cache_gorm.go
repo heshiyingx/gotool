@@ -358,7 +358,7 @@ func (cg *CacheGormDB[T, P]) QueryCtx(ctx context.Context, result any, key strin
 
 	})
 }
-func (cg *CacheGormDB[T, P]) QuerySlicesCtxCustom(ctx context.Context, result *[]T, key string, queryDBFn QuerySlicesFn[T], queryCacheFn QueryCacheSlicesCtxFn[T]) error {
+func (cg *CacheGormDB[T, P]) QuerySlicesCtxCustom(ctx context.Context, result *[]T, key string, queryDBFn QuerySlicesFn[T], queryCacheFn QueryCacheSlicesCtxFn) error {
 
 	_, err, _ := cg.singleFlight.Do(key, func() (interface{}, error) {
 		tString, err := cg.rdb.Type(ctx, key).Result()
@@ -368,16 +368,25 @@ func (cg *CacheGormDB[T, P]) QuerySlicesCtxCustom(ctx context.Context, result *[
 		if tString == "string" {
 			return nil, gorm.ErrRecordNotFound
 		} else if tString == "set" {
-			isSuccess, err := queryCacheFn(ctx, result, cg.rdb)
-			if isSuccess {
-				return result, nil
-			}
+			res, isSuccess, err := queryCacheFn(ctx, cg.rdb)
 			if err != nil {
 				if errors.Is(err, redis.Nil) {
 					err = nil
 				} else {
 					return nil, err
 				}
+			}
+			if isSuccess {
+				for _, ele := range res {
+					var eObj T
+					err = json.Unmarshal([]byte(ele), &eObj)
+					if err != nil {
+						return nil, err
+					}
+					*result = append(*result, eObj)
+				}
+
+				return result, nil
 			}
 		} else if tString != "none" {
 			return nil, TypeErr
@@ -417,8 +426,23 @@ func (cg *CacheGormDB[T, P]) QuerySlicesCtxCustom(ctx context.Context, result *[
 		}
 		cg.rdb.Expire(ctx, key, genDuring(cg.cacheExpireSec, cg.randSec))
 		*result = nil
-		isSuccess, err := queryCacheFn(ctx, result, cg.rdb)
+		res, isSuccess, err := queryCacheFn(ctx, cg.rdb)
+		if err != nil {
+			if errors.Is(err, redis.Nil) {
+				err = nil
+			} else {
+				return nil, err
+			}
+		}
 		if isSuccess {
+			resBytes, err := json.Marshal(res)
+			if err != nil {
+				return nil, err
+			}
+			err = json.Unmarshal(resBytes, result)
+			if err != nil {
+				return nil, err
+			}
 			return result, nil
 		}
 		return result, err

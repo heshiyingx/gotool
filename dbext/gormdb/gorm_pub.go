@@ -32,12 +32,12 @@ type (
 	QueryPrimaryKeysFn[P int64 | uint64 | string] func(ctx context.Context, ps *[]P, db *gorm.DB) error
 	//QueryModelsFn[T any]                          func(ctx context.Context, rs *[]T, db *gorm.DB) error
 
-	QueryCtxFn                   func(ctx context.Context, r any, db *gorm.DB) error
-	QuerySlicesFn[T any]         func(ctx context.Context, r *[]T, db *gorm.DB) error
-	QueryCacheSlicesCtxFn[T any] func(ctx context.Context, r *[]T, rdb redis.UniversalClient) (bool, error)
-	ExecCtxFn                    func(ctx context.Context, db *gorm.DB) (int64, error)
-	CacheFn                      func(result string, waitUpdate bool) error
-	Config                       struct {
+	QueryCtxFn            func(ctx context.Context, r any, db *gorm.DB) error
+	QuerySlicesFn[T any]  func(ctx context.Context, r *[]T, db *gorm.DB) error
+	QueryCacheSlicesCtxFn func(ctx context.Context, rdb redis.UniversalClient) ([]string, bool, error)
+	ExecCtxFn             func(ctx context.Context, db *gorm.DB) (int64, error)
+	CacheFn               func(result string, waitUpdate bool) error
+	Config                struct {
 		DSN               string
 		DBType            DBType
 		GormConfig        gorm.Config

@@ -171,7 +171,7 @@ func TestCacheGormDB_ExecCtx(t *testing.T) {
 		Addr:     ":6379",
 		Password: "root",
 	})
-	cacheGormDB := MustNewCacheGormDB[string, int64](Config{
+	cacheGormDB := MustNewCacheGormDB[Users, int64](Config{
 		DSN:    "root:root@tcp(127.0.0.1:3306)/im_server?charset=utf8mb4&parseTime=True&loc=Local",
 		DBType: DBTYPE_MySQL,
 		GormConfig: gorm.Config{
@@ -202,20 +202,20 @@ func TestCacheGormDB_ExecCtx(t *testing.T) {
 		return
 	}
 	for i := 0; i < 100; i++ {
-		var ret []string
-		cacheGormDB.QuerySlicesCtxCustom(context.Background(), &ret, "sliceCache", func(ctx context.Context, r *[]string, db *gorm.DB) error {
-			*r = append(*r, "1", "2", "3", "4", "5", "6")
+		var ret []Users
+		cacheGormDB.QuerySlicesCtxCustom(context.Background(), &ret, "sliceCache", func(ctx context.Context, r *[]Users, db *gorm.DB) error {
 			fmt.Println("-------------DB-------------查询")
-			return nil
-		}, func(ctx context.Context, r *[]string, rdb redis.UniversalClient) (bool, error) {
+			return db.Model(&Users{}).Where("id >1 ").Find(r).Error
+		}, func(ctx context.Context, rdb redis.UniversalClient) ([]string, bool, error) {
 			result, err := rdb.SRandMember(ctx, "sliceCache").Result()
 			if err != nil {
-				return false, err
+				return []string{result}, false, err
 			}
-			*r = append(*r, result)
-			return true, nil
+			return []string{result}, true, nil
 		})
-		fmt.Println(ret)
+		for _, user := range ret {
+			fmt.Println(user.Id)
+		}
 	}
 	//pkCacheKey := fmt.Sprintf("%v%v", cacheUsersPKPrefix, pkValue)
 
