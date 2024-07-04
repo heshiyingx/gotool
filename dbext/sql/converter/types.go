@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/heshiyingx/gotool/dbext/ddl-parser/parser"
 	"strings"
-
 )
 
 var unsignedTypeMap = map[string]string{
@@ -41,9 +40,9 @@ var commonMysqlDataTypeMapInt = map[int]string{
 	parser.Numeric:   "float64",
 	parser.Real:      "float64",
 	// date&time
-	parser.Date:      "time.Time",
-	parser.DateTime:  "time.Time",
-	parser.Timestamp: "time.Time",
+	parser.Date:      "*time.Time",
+	parser.DateTime:  "*time.Time",
+	parser.Timestamp: "*time.Time",
 	parser.Time:      "string",
 	parser.Year:      "int64",
 	// string
@@ -201,7 +200,7 @@ var commonMysqlDataTypeMapString = map[string]string{
 }
 
 // ConvertDataType converts mysql column type into golang type
-func ConvertDataType(dataBaseType int, isDefaultNull, unsigned, strict bool) (string, string, error) {
+func ConvertDataType(dataBaseType int, fileName string, isDefaultNull, unsigned, strict bool) (string, string, error) {
 	//if env.UseExperimental() {
 	//	tp, ok := commonMysqlDataTypeMap[dataBaseType]
 	//	if !ok {
@@ -216,6 +215,9 @@ func ConvertDataType(dataBaseType int, isDefaultNull, unsigned, strict bool) (st
 	tp, ok := commonMysqlDataTypeMapInt[dataBaseType]
 	if !ok {
 		return "", "", fmt.Errorf("unsupported database type: %v", dataBaseType)
+	}
+	if fileName == "deleted_at" && tp == "*time.Time" {
+		tp = "gorm.DeletedAt"
 	}
 
 	return mayConvertNullType(tp, isDefaultNull, unsigned, strict), "", nil
@@ -299,6 +301,8 @@ func mayConvertNullType(goDataType string, isDefaultNull, unsigned, strict bool)
 		return "sql.NullBool"
 	case "string":
 		return "sql.NullString"
+	case "*time.Time":
+		fallthrough
 	case "time.Time":
 		return "sql.NullTime"
 	default:
