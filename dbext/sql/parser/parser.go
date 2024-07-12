@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-const timeImport = "time.Time"
+const timeImport = "*time.Time"
 
 type (
 	// Table describes a mysql table
@@ -236,7 +236,7 @@ func convertColumns(columns []*parser.Column, primaryColumn *collection2.SortSet
 			isContaindNull = true
 		}
 
-		dataType, thirdPkg, err := converter.ConvertDataType(column.DataType.Type(), isDefaultNull, column.DataType.Unsigned(), strict)
+		dataType, thirdPkg, err := converter.ConvertDataType(column.DataType.Type(), column.Name, isDefaultNull, column.DataType.Unsigned(), strict)
 		if err != nil {
 			return Primary{}, nil, false, err
 		}

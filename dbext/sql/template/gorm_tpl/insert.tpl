@@ -2,7 +2,6 @@ func (m *default{{.upperStartCamelObject}}Model) Insert(ctx context.Context, dat
 {{if .withCache}}{{.keys}}
 		afterDel := true
 		cacheKeys := make([]string, 0, {{.keysLen}})
-		cacheKeys = []string{ {{.uniqueCacheKeys}} }
 
 		{{ if eq .pkDataType "string" }}
 			if data.Id != "" {

@@ -46,6 +46,7 @@ func TestDefaultGenerator_StartFromDDL(t *testing.T) {
 		return
 	}
 	filename := "/Users/john/study/code/gocode/test2/sqld/user.sql"
+	filename = "/Users/john/work/chicken_farm/rpc/chicken/internal/model/dial_config/dial_config.sql"
 	//database := "database"
 	strict := false
 	withCache := true
