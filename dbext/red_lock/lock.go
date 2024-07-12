@@ -100,7 +100,9 @@ func (l *RedLock) Lock() (bool, error) {
 			atomic.CompareAndSwapInt32(&l.endMark, 1, 0)
 			return false, err
 		} else {
-			atomic.CompareAndSwapInt32(&l.endMark, 1, 2)
+			if !atomic.CompareAndSwapInt32(&l.endMark, 1, 2) {
+				return false, nil
+			}
 		}
 		go func() {
 
@@ -122,7 +124,7 @@ func (l *RedLock) Lock() (bool, error) {
 		}()
 	}
 
-	return false, nil
+	return true, nil
 
 }
 func (l *RedLock) Unlock() (bool, error) {
