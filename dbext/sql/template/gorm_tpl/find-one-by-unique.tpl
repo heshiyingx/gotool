@@ -25,7 +25,7 @@ func (m *default{{.upperStartCamelObject}}Model) FindOneBy{{.upperField}}(ctx co
     {{end}}
 }
 
-func (m *default{{.upperStartCamelObject}}Model) UpdateOneBy{{.upperField}}(ctx context.Context, {{.in}},updateObj *{{.upperStartCamelObject}},fields ...string) (int64, error) {
+func (m *default{{.upperStartCamelObject}}Model) UpdateOneBy{{.upperField}}(ctx context.Context, {{.in}},updateObj *{{.upperStartCamelObject}},delCacheKeys []string,fields ...string) (int64, error) {
     if updateObj==nil{
 		return 0,nil
     }
@@ -35,6 +35,10 @@ func (m *default{{.upperStartCamelObject}}Model) UpdateOneBy{{.upperField}}(ctx 
             return 0, err
 		}
 		{{.keys}}
+
+        delKeys := []string{ {{.keyNames}} }
+        if len(delCacheKeys) > 0 { delKeys = append(delKeys, delCacheKeys...) }
+
         return m.db.ExecCtx(ctx, func(ctx context.Context, db *gorm.DB) (int64, error) {
             upTx := db.Model(&{{.upperStartCamelObject}}{}).Where("{{.pkNameWrap}}", {{.lowerStartCamelField}})
             if len(fields) > 0 {
@@ -43,7 +47,7 @@ func (m *default{{.upperStartCamelObject}}Model) UpdateOneBy{{.upperField}}(ctx 
                 upTx = upTx.Save(updateObj)
             }
             return upTx.RowsAffected,upTx.Error
-        },{{.keyNames}})
+        },delCacheKeys...)
 
     {{else}}
 
@@ -58,7 +62,7 @@ func (m *default{{.upperStartCamelObject}}Model) UpdateOneBy{{.upperField}}(ctx 
     })
     {{end}}
 }
-func (m *default{{.upperStartCamelObject}}Model) DeleteOneBy{{.upperField}}(ctx context.Context, {{.in}}) (int64, error) {
+func (m *default{{.upperStartCamelObject}}Model) DeleteOneBy{{.upperField}}(ctx context.Context, {{.in}},delCacheKeys ...string) (int64, error) {
 
     {{if .withCache}}
         data,err := m.FindOneBy{{.upperField}}(ctx,{{.lowerStartCamelField}})
@@ -66,10 +70,14 @@ func (m *default{{.upperStartCamelObject}}Model) DeleteOneBy{{.upperField}}(ctx 
         return 0, err
         }
         {{.keys}}
+
+        delKeys := []string{ {{.keyNames}} }
+        if len(delCacheKeys) > 0 { delKeys = append(delKeys, delCacheKeys...) }
+
         return m.db.ExecCtx(ctx, func(ctx context.Context, db *gorm.DB) (int64, error) {
             delTx := db.Where("{{.pkNameWrap}}", {{.lowerStartCamelField}}).Delete(&{{.upperStartCamelObject}}{})
             return delTx.RowsAffected,delTx.Error
-        },{{.keyNames}})
+        },delKeys...)
 
     {{else}}
     return m.db.ExecCtx(ctx, func(ctx context.Context, db *gorm.DB) (int64, error) {
