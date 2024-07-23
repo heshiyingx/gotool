@@ -41,7 +41,8 @@ func genDeleteByPK(table Table, withCache bool) (string, string, error) {
 			"dataType":                  table.PrimaryKey.Fields[0].DataType,
 			"keys":                      strings.Join(keys, "\n"),
 			"originalPrimaryKey":        wrapWithRawString(table.PrimaryKey.Fields[0].Name.Source()),
-			"keyValues":                 strings.Join(keyVars, ", "),
+			"cacheKeyStr":               strings.Join(keyVars, ", "),
+			"cacheKeys":                 keyVars,
 			"data":                      table,
 		})
 	if err != nil {

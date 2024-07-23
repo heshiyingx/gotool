@@ -1,4 +1,4 @@
-func (m *default{{.upperStartCamelObject}}Model) UpdateBy{{.titlePrimaryKey}}(ctx context.Context, {{.lowerStartCamelPrimaryKey}} {{.dataType}},updateObj *{{.upperStartCamelObject}},fields ...string) (int64, error) {
+func (m *default{{.upperStartCamelObject}}Model) UpdateBy{{.titlePrimaryKey}}(ctx context.Context, {{.lowerStartCamelPrimaryKey}} {{.dataType}},updateObj *{{.upperStartCamelObject}},delCacheKeys []string,fields ...string) (int64, error) {
 	if updateObj==nil{
 		return 0,nil
 	}
@@ -8,6 +8,10 @@ func (m *default{{.upperStartCamelObject}}Model) UpdateBy{{.titlePrimaryKey}}(ct
 		return 0, err
 	}
 	{{.keys}}
+
+	delKeys := []string{ {{.keyNames}} }
+	if len(delCacheKeys) > 0 { delKeys = append(delKeys, delCacheKeys...) }
+
 	return m.db.ExecCtx(ctx, func(ctx context.Context, db *gorm.DB) (int64, error) {
 		upTx := db.Model(&{{.upperStartCamelObject}}{}).Where("{{.originalPrimaryKey}}=?", {{.lowerStartCamelPrimaryKey}})
 		if len(fields) > 0 {
@@ -16,7 +20,7 @@ func (m *default{{.upperStartCamelObject}}Model) UpdateBy{{.titlePrimaryKey}}(ct
 			upTx = upTx.Save(updateObj)
 		}
 		return upTx.RowsAffected,upTx.Error
-	},{{.keyNames}})
+	},delKeys...)
 	{{else}}
 
 	return m.db.ExecCtx(ctx, func(ctx context.Context, db *gorm.DB) (int64, error) {

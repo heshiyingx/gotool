@@ -1,7 +1,12 @@
-func (m *default{{.upperStartCamelObject}}Model) Insert(ctx context.Context, data *{{.upperStartCamelObject}}) (int64, error) {
+func (m *default{{.upperStartCamelObject}}Model) Insert(ctx context.Context, data *{{.upperStartCamelObject}},delCacheKeys ...string) (int64, error) {
 {{if .withCache}}{{.keys}}
 		afterDel := true
 		cacheKeys := make([]string, 0, {{.keysLen}})
+		cacheKeys = []string{ {{.uniqueCacheKeys}}}
+		if len(delCacheKeys) > 0 {
+			cacheKeys = append(cacheKeys, delCacheKeys...)
+		}
+
 
 		{{ if eq .pkDataType "string" }}
 			if data.Id != "" {

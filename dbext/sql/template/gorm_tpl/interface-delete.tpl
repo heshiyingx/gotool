@@ -1,1 +1,1 @@
-DeleteBy{{.titlePrimaryKey}}(ctx context.Context, {{.lowerStartCamelPrimaryKey}} {{.dataType}}) (int64, error)
+DeleteBy{{.titlePrimaryKey}}(ctx context.Context, {{.lowerStartCamelPrimaryKey}} {{.dataType}},delCacheKeys ...string) (int64, error)

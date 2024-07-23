@@ -568,6 +568,9 @@ func (cg *CacheGormDB[T, P]) setCacheWithNotFound(ctx context.Context, key strin
 	_, err := cg.rdb.SetNX(ctx, key, notFoundPlaceholder, expire).Result()
 	return err
 }
+func (cg *CacheGormDB[T, P]) GetRdb() redis.UniversalClient {
+	return cg.rdb
+}
 func genDuring(oriSec int, randSec int) time.Duration {
 	if oriSec == 0 {
 		return 0
