@@ -549,7 +549,7 @@ func (cg *CacheGormDB[T, P]) ExecCtx(ctx context.Context, execFn ExecCtxFn, keys
 			select {
 			case <-deadline.Done():
 			}
-			err = cg.rdb.Del(ctx, keys...).Err()
+			err = cg.rdb.Del(context.Background(), keys...).Err()
 			if err != nil {
 				log.Printf("ant pool task doing err:%v", err)
 				//cg.antFailChan <- keys
