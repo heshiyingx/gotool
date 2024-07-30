@@ -16,7 +16,6 @@ type CodeError interface {
 	// Is 判断是否是某个错误, loose为false时, 只有错误码相同就认为是同一个错误, 默认为true
 	Is(err error, loose ...bool) bool
 	Wrap(msg ...string) error
-	GRPCErr() error
 	error
 }
 type codeError struct {
