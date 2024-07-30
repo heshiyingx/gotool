@@ -47,7 +47,7 @@ func (m *default{{.upperStartCamelObject}}Model) UpdateOneBy{{.upperField}}(ctx 
                 upTx = upTx.Save(updateObj)
             }
             return upTx.RowsAffected,upTx.Error
-        },delCacheKeys...)
+        },delKeys...)
 
     {{else}}
 
