@@ -2,6 +2,8 @@ package errs
 
 import (
 	"github.com/pkg/errors"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"strconv"
 	"strings"
 )
@@ -14,6 +16,7 @@ type CodeError interface {
 	// Is 判断是否是某个错误, loose为false时, 只有错误码相同就认为是同一个错误, 默认为true
 	Is(err error, loose ...bool) bool
 	Wrap(msg ...string) error
+	GRPCErr() error
 	error
 }
 type codeError struct {
@@ -22,9 +25,21 @@ type codeError struct {
 	detail string
 }
 
+func WarpGrpcErr(err error) error {
+	code_err := &codeError{}
+	ok := errors.As(err, &code_err)
+	if ok {
+		return status.Error(codes.Code(code_err.code), code_err.CompleteMsg())
+	}
+	return status.Error(codes.Code(500), code_err.Error())
+}
 func (e *codeError) Code() int {
 	return e.code
 }
+
+//func (e *codeError) GRPCErr() error {
+//	return status.Error(codes.Code(e.code), e.CompleteMsg())
+//}
 
 func (e *codeError) Msg() string {
 	return e.msg
@@ -51,7 +66,12 @@ func (e *codeError) WithDetail(detail string) CodeError {
 func (e *codeError) Wrap(w ...string) error {
 	return errors.Wrap(e, strings.Join(w, ", "))
 }
-
+func (e *codeError) CompleteMsg() string {
+	if e.detail == "" {
+		return e.msg
+	}
+	return e.msg + ":" + e.detail
+}
 func (e *codeError) Is(err error, loose ...bool) bool {
 	if err == nil {
 		return false
