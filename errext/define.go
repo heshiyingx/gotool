@@ -30,7 +30,7 @@ func WarpGrpcErr(err error) error {
 	if ok {
 		return status.Error(codes.Code(code_err.code), code_err.CompleteMsg())
 	}
-	return status.Error(codes.Code(500), code_err.Error())
+	return status.Error(codes.Code(500), err.Error())
 }
 func (e *codeError) Code() int {
 	return e.code
