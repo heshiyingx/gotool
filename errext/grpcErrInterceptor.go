@@ -10,7 +10,7 @@ func CodeErrorInterceptor(ctx context.Context, req interface{}, info *grpc.Unary
 	// TODO: fill your logic here
 	resp1, err1 := handler(ctx, req)
 	if err1 != nil {
-		logx.WithContext(ctx).Errorf("GRPC_FUNC:%v err: %v,req:%#v,chickenObj:%#v\n", err, info.FullMethod, err, req)
+		logx.WithContext(ctx).Errorf("err: %v,GRPC_FUNC:%v,req:%#v\n", err, info.FullMethod, err, req)
 		return nil, WarpGrpcErr(err1)
 	}
 	return resp1, nil
