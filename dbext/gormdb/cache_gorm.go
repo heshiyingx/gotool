@@ -128,16 +128,18 @@ func (cg *CacheGormDB[T, P]) QueryOneCtx(ctx context.Context, result any, key st
 			return fmt.Errorf("unexpected type for ret, expected *P, got: %T", ret)
 		}
 		err := queryPrimaryFn(ctx, typedRet, cg.db)
+		logx.WithContext(ctx).Debugf("queryPrimaryFn  key:%v,  result:%v err:%v ", key, strext.ToJsonStr(typedRet), err)
 		if err != nil {
 			return err
 		}
 		return err
-	}, func(result string, waitUpdate bool) error {
+	}, func(resultStr string, waitUpdate bool) error {
+		logx.WithContext(ctx).Debugf("QueryOneCtx->takeAfter key:%v,  result:%v, waitUpdate:%v", key, resultStr, waitUpdate)
 		if waitUpdate {
-			_, err := cg.rdb.Set(ctx, key, result, time.Second*2).Result()
+			_, err := cg.rdb.Set(ctx, key, resultStr, time.Second*2).Result()
 			return err
 		} else {
-			isSet, err := cg.rdb.SetNX(ctx, key, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
+			isSet, err := cg.rdb.SetNX(ctx, key, resultStr, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
 			if err != nil {
 				return err
 			}
@@ -165,12 +167,13 @@ func (cg *CacheGormDB[T, P]) QueryOneCtx(ctx context.Context, result any, key st
 			return err
 		}
 		return nil
-	}, func(result string, waitUpdate bool) error {
+	}, func(resultStr string, waitUpdate bool) error {
+		logx.WithContext(ctx).Debugf("QueryOneCtx->takeAfter key:%v,  result:%v, waitUpdate:%v,   primaryCacheKey:%v", key, resultStr, waitUpdate, primaryCacheKey)
 		if waitUpdate {
-			_, err = cg.rdb.Set(ctx, primaryCacheKey, result, time.Second*2).Result()
+			_, err = cg.rdb.Set(ctx, primaryCacheKey, resultStr, time.Second*2).Result()
 			return err
 		} else {
-			isSet, err := cg.rdb.SetNX(ctx, primaryCacheKey, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
+			isSet, err := cg.rdb.SetNX(ctx, primaryCacheKey, resultStr, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
 			if err != nil {
 				return err
 			}
@@ -183,6 +186,7 @@ func (cg *CacheGormDB[T, P]) QueryOneCtx(ctx context.Context, result any, key st
 		}
 
 	})
+	logx.WithContext(ctx).Debugf("QueryOneCtx->Finish key:%v,  result:%v  err:%v", key, strext.ToJsonStr(result), err)
 	return err
 }
 func (cg *CacheGormDB[T, P]) QueryOneByPKCtx(ctx context.Context, r *T, key string, queryFn QueryCtxFn) error {
@@ -263,12 +267,13 @@ func (cg *CacheGormDB[T, P]) QueryManyByPKsCtx(ctx context.Context, result *[]T,
 				return err
 			}
 			return nil
-		}, func(result string, waitUpdate bool) error {
+		}, func(resultStr string, waitUpdate bool) error {
+			logx.WithContext(ctx).Debugf("QueryManyByPKsCtx->takeAfter pkInfo.pkCacheKey:%v,  result:%v  waitUpdate:%v", pkInfo.pkCacheKey, resultStr, waitUpdate)
 			if waitUpdate {
-				_, err := cg.rdb.Set(ctx, pkInfo.pkCacheKey, result, time.Second).Result()
+				_, err := cg.rdb.Set(ctx, pkInfo.pkCacheKey, resultStr, time.Second).Result()
 				return err
 			} else {
-				isSet, err := cg.rdb.SetNX(ctx, pkInfo.pkCacheKey, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
+				isSet, err := cg.rdb.SetNX(ctx, pkInfo.pkCacheKey, resultStr, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
 				if err != nil {
 					return err
 				}
@@ -283,6 +288,8 @@ func (cg *CacheGormDB[T, P]) QueryManyByPKsCtx(ctx context.Context, result *[]T,
 		if err != nil {
 			return err
 		}
+		logx.WithContext(ctx).Debugf("QueryOneCtx->Finish pkInfo.pkCacheKey:%v,  result:%v  err:%v", pkInfo.pkCacheKey, strext.ToJsonStr(result), err)
+
 		*result = append(*result, t)
 	}
 	return nil
@@ -360,17 +367,19 @@ func (cg *CacheGormDB[T, P]) QuerySafeSingleFromDB(ctx context.Context, key stri
 	}
 }
 func (cg *CacheGormDB[T, P]) QueryCtx(ctx context.Context, result any, key string, fn QueryCtxFn) error {
-	err := cg.takeCtx(ctx, key, result, fn, func(result string, waitUpdate bool) error {
+	err := cg.takeCtx(ctx, key, result, fn, func(resultStr string, waitUpdate bool) error {
+		logx.WithContext(ctx).Debugf("QueryCtx->takeAfter key:%v, result:%v waitUpdate:%v", key, resultStr, waitUpdate)
+
 		if waitUpdate {
-			_, err := cg.rdb.Set(ctx, key, result, time.Second*2).Result()
+			_, err := cg.rdb.Set(ctx, key, resultStr, time.Second*2).Result()
 			return err
 		} else {
-			isSet, err := cg.rdb.SetNX(ctx, key, result, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
+			isSet, err := cg.rdb.SetNX(ctx, key, resultStr, genDuring(cg.cacheExpireSec, cg.randSec)).Result()
 			if err != nil {
 				return err
 			}
 			if !isSet {
-				_, err = cg.rdb.Set(ctx, key, result, time.Second*2).Result()
+				_, err = cg.rdb.Set(ctx, key, resultStr, time.Second*2).Result()
 				return err
 			}
 			return nil
