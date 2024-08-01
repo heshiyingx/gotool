@@ -10,7 +10,7 @@ import (
 func CodeErrorInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
 	resp1, err1 := handler(ctx, req)
 	if err1 != nil {
-		logx.WithContext(ctx).Errorf("err: %v,GRPC_FUNC:%v,req:%v\n", err, info.FullMethod, strext.ToJsonStr(req))
+		logx.WithContext(ctx).Errorf("err: %v,GRPC_FUNC:%v,req:%v\n", err1, info.FullMethod, strext.ToJsonStr(req))
 		return nil, WarpGrpcErr(err1)
 	}
 	logx.WithContext(ctx).Debugf("GRPC_FUNC:%v,req:%#v,resp:%#v\n", info.FullMethod, strext.ToJsonStr(req), strext.ToJsonStr(resp1))
