@@ -15,6 +15,7 @@ import (
 	"gorm.io/gorm"
 	"log"
 	"math/rand"
+	"reflect"
 	"runtime"
 	"time"
 )
@@ -496,7 +497,7 @@ func (cg *CacheGormDB[T, P]) DelCacheKeys(ctx context.Context, keys ...string) e
 
 func (cg *CacheGormDB[T, P]) takeCtx(ctx context.Context, key string, result any, query QueryCtxFn, cacheFn CacheFn) error {
 
-	_, err, _ := cg.singleFlight.Do(key, func() (interface{}, error) {
+	singleResult, err, share := cg.singleFlight.Do(key, func() (interface{}, error) {
 		//fmt.Println("进入redis缓存")
 		val, err := cg.rdb.Get(ctx, key).Result()
 		logx.WithContext(ctx).Debugf("takeCtx->CacheGet   key:%v,  var:%v,  err:%v", key, val, err)
@@ -551,6 +552,17 @@ func (cg *CacheGormDB[T, P]) takeCtx(ctx context.Context, key string, result any
 		}
 		return result, nil
 	})
+	if err != nil {
+		return err
+	}
+	if share {
+		v := reflect.ValueOf(result).Elem()                     // 获取 result 指针指向的值的 reflect.Value
+		singResultValue := reflect.ValueOf(singleResult).Elem() // 获取 singleResult 的值
+		if v.Type() != singResultValue.Type() {                 // 检查类型是否匹配
+			return fmt.Errorf("unexpected type:%T", singleResult)
+		}
+		v.Set(singResultValue) // 更新 result 的值
+	}
 	return err
 }
 func (cg *CacheGormDB[T, P]) ExecCtx(ctx context.Context, execFn ExecCtxFn, keys ...string) (int64, error) {
