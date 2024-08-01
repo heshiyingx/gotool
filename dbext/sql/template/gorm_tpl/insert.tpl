@@ -24,7 +24,7 @@ func (m *default{{.upperStartCamelObject}}Model) Insert(ctx context.Context, dat
 
 
 		result, err := m.db.ExecCtx(ctx, func(ctx context.Context, db *gorm.DB) (int64, error) {
-			res := db.Model(&{{.upperStartCamelObject}}{}).Create(data)
+			res := db.WithContext(ctx).Model(&{{.upperStartCamelObject}}{}).Create(data)
 			return res.RowsAffected, res.Error
 		}, cacheKeys...)
 
@@ -42,7 +42,7 @@ func (m *default{{.upperStartCamelObject}}Model) Insert(ctx context.Context, dat
 		return result, err
 {{else}}
 		return m.db.ExecCtx(ctx, func(ctx context.Context, db *gorm.DB) (int64, error) {
-			res := db.Model(&{{.upperStartCamelObject}}{}).Create(data)
+			res := db.WithContext(ctx).Model(&{{.upperStartCamelObject}}{}).Create(data)
 			return res.RowsAffected, res.Error
 		})
 {{end}}
