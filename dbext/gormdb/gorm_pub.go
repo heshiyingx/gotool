@@ -36,7 +36,7 @@ type (
 	QuerySlicesFn[T any]  func(ctx context.Context, r *[]T, db *gorm.DB) error
 	QueryCacheSlicesCtxFn func(ctx context.Context, rdb redis.UniversalClient) ([]string, bool, error)
 	ExecCtxFn             func(ctx context.Context, db *gorm.DB) (int64, error)
-	CacheFn               func(result string, waitUpdate bool) error
+	CacheFn               func(resultStr string, waitUpdate bool) error
 	Config                struct {
 		DSN               string
 		DBType            DBType
