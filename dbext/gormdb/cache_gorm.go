@@ -490,6 +490,7 @@ func (cg *CacheGormDB[T, P]) takeCtx(ctx context.Context, key string, result any
 	_, err, _ := cg.singleFlight.Do(key, func() (interface{}, error) {
 		//fmt.Println("进入redis缓存")
 		val, err := cg.rdb.Get(ctx, key).Result()
+		logx.WithContext(ctx).Debugf("takeCtx->CacheGet   key:%v,  var:%v,  err:%v", key, val, err)
 		if err != nil {
 			if errors.Is(err, redis.Nil) {
 				err = nil
@@ -509,6 +510,7 @@ func (cg *CacheGormDB[T, P]) takeCtx(ctx context.Context, key string, result any
 		}
 
 		if err = query(ctx, result, cg.db); err != nil {
+			logx.WithContext(ctx).Debugf("takeCtx->queryErr   key:%v  result:%v  err:%v", key, strext.ToJsonStr(result), err)
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				err = cg.setCacheWithNotFound(ctx, key)
 				if cg.db.Logger != nil && err != nil {
@@ -519,6 +521,8 @@ func (cg *CacheGormDB[T, P]) takeCtx(ctx context.Context, key string, result any
 				return nil, err
 			}
 		}
+		logx.WithContext(ctx).Debugf("takeCtx->querySuccess   key:%v,result:%v,jsonStr_val:%v,err:%v", key, strext.ToJsonStr(result), val, err)
+
 		resultBytes, err := json.Marshal(result)
 		if err != nil {
 			logx.WithContext(ctx).Debugf("takeCtx->jsonMarshalErr   key:%v,result:%v,jsonStr_val:%v,err:%v", key, strext.ToJsonStr(result), val, err)
