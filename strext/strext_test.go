@@ -1,7 +1,7 @@
 package strext
 
 import (
-	"fmt"
+	"github.com/zeromicro/go-zero/core/logx"
 	"testing"
 )
 
@@ -11,17 +11,25 @@ func TestToJsonStr(t *testing.T) {
 		Age  int     `json:"age"`
 		Son  *Person `json:"son"`
 	}
-
-	p := Person{
+	p0 := Person{
 		Name: "John",
 		Age:  30,
 	}
 
-	jsonStr := ToJsonStr(p)
-	jsonStr1 := ToJsonStr(&p)
-	jsonStr2 := ToJsonStr(nil)
+	p := Person{
+		Name: "John",
+		Age:  30,
+		Son:  &p0,
+	}
+	p1 := Person{
+		Name: "Amy",
+		Age:  1,
+		Son:  &p,
+	}
 
-	fmt.Println(jsonStr)
-	fmt.Println(jsonStr1)
-	fmt.Println(jsonStr2)
+	jsonStr := ToJsonStr(p1)
+	//jsonStr1 := ToJsonStr(&p)
+	//jsonStr2 := ToJsonStr(nil)
+
+	logx.Infof("jsonStr:%v", jsonStr)
 }

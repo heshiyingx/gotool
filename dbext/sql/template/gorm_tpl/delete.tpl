@@ -12,12 +12,12 @@ func (m *default{{.upperStartCamelObject}}Model) DeleteBy{{.titlePrimaryKey}}(ct
 
 
         return m.db.ExecCtx(ctx, func(ctx context.Context, db *gorm.DB) (int64, error) {
-            res := db.Where("{{.lowerStartCamelPrimaryKey}} = ?", {{.lowerStartCamelPrimaryKey}}).Delete(&{{.upperStartCamelObject}}{})
+            res := db.WithContext(ctx).Where("{{.lowerStartCamelPrimaryKey}} = ?", {{.lowerStartCamelPrimaryKey}}).Delete(&{{.upperStartCamelObject}}{})
             return res.RowsAffected, res.Error
 		}, delKeys...)
     {{else}}
         return m.db.ExecCtx(ctx, func(ctx context.Context, db *gorm.DB) (int64, error) {
-            res := db.Where("{{.lowerStartCamelPrimaryKey}} = ?", {{.lowerStartCamelPrimaryKey}}).Delete(&{{.upperStartCamelObject}}{})
+            res := db.WithContext(ctx).Where("{{.lowerStartCamelPrimaryKey}} = ?", {{.lowerStartCamelPrimaryKey}}).Delete(&{{.upperStartCamelObject}}{})
             return res.RowsAffected, res.Error
         })
     {{end}}

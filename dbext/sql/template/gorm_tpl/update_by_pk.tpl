@@ -13,7 +13,7 @@ func (m *default{{.upperStartCamelObject}}Model) UpdateBy{{.titlePrimaryKey}}(ct
 	if len(delCacheKeys) > 0 { delKeys = append(delKeys, delCacheKeys...) }
 
 	return m.db.ExecCtx(ctx, func(ctx context.Context, db *gorm.DB) (int64, error) {
-		upTx := db.Model(&{{.upperStartCamelObject}}{}).Where("{{.originalPrimaryKey}}=?", {{.lowerStartCamelPrimaryKey}})
+		upTx := db.WithContext(ctx).Model(&{{.upperStartCamelObject}}{}).Where("{{.originalPrimaryKey}}=?", {{.lowerStartCamelPrimaryKey}})
 		if len(fields) > 0 {
 			upTx = upTx.Select(strings.Join(fields, ",")).Updates(updateObj)
 		}else {
@@ -24,7 +24,7 @@ func (m *default{{.upperStartCamelObject}}Model) UpdateBy{{.titlePrimaryKey}}(ct
 	{{else}}
 
 	return m.db.ExecCtx(ctx, func(ctx context.Context, db *gorm.DB) (int64, error) {
-		upTx := db.Model(&{{.upperStartCamelObject}}{}).Where("{{.originalPrimaryKey}}=?", {{.lowerStartCamelPrimaryKey}})
+		upTx := db.WithContext(ctx).Model(&{{.upperStartCamelObject}}{}).Where("{{.originalPrimaryKey}}=?", {{.lowerStartCamelPrimaryKey}})
 	if len(fields) > 0 {
 		upTx = upTx.Select(strings.Join(fields, ",")).Updates(updateObj)
 	} else {

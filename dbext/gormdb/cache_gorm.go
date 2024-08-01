@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"github.com/heshiyingx/gotool/dbext/red_lock"
 	"github.com/heshiyingx/gotool/dbext/redis_script"
+	"github.com/heshiyingx/gotool/strext"
 	"github.com/panjf2000/ants/v2"
 	"github.com/redis/go-redis/v9"
+	"github.com/zeromicro/go-zero/core/logx"
 	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 	"log"
@@ -115,6 +117,9 @@ func NewCacheGormDB[T any, P int64 | uint64 | string](c Config) (*CacheGormDB[T,
 /*---------------*/
 
 func (cg *CacheGormDB[T, P]) QueryOneCtx(ctx context.Context, result any, key string, queryPrimaryFn QueryPrimaryKeyFn[P], primaryCachePrefix string, queryModelFn QueryModelByPKFn[T, P]) error {
+	defer func() {
+		logx.WithContext(ctx).Debugf("QueryOneCtx key:%v,result:%v", key, strext.ToJsonStr(result))
+	}()
 	var primaryValue P
 	err := cg.takeCtx(ctx, key, &primaryValue, func(ctx context.Context, ret any, db *gorm.DB) error {
 		//var p P
@@ -194,6 +199,9 @@ func (cg *CacheGormDB[T, P]) QueryToGetPKCtx(ctx context.Context, key string, p 
 	})
 }
 func (cg *CacheGormDB[T, P]) QueryManyCtx(ctx context.Context, result *[]T, queryPKsFn QueryPrimaryKeysFn[P], primaryCachePrefix string, queryModelFn QueryModelByPKFn[T, P]) error {
+	defer func() {
+		logx.WithContext(ctx).Debugf("QueryManyCtx  result:%v", strext.ToJsonStr(result))
+	}()
 	var pks []P
 	err := queryPKsFn(ctx, &pks, cg.db)
 	if err != nil {
@@ -235,6 +243,9 @@ func (cg *CacheGormDB[T, P]) QueryManyCtx(ctx context.Context, result *[]T, quer
 
 }
 func (cg *CacheGormDB[T, P]) QueryManyByPKsCtx(ctx context.Context, result *[]T, pks []P, primaryCachePrefix string, queryDBFn QueryModelByPKFn[T, P]) error {
+	defer func() {
+		logx.WithContext(ctx).Debugf("QueryManyByPKsCtx  pks:%v,result:%v", pks, strext.ToJsonStr(result))
+	}()
 	pkInfos := make([]pkInfoDefine[P], 0, len(pks))
 	for _, pk := range pks {
 		pkCacheKey := fmt.Sprintf("%v%v", primaryCachePrefix, pk)
@@ -280,6 +291,9 @@ func (cg *CacheGormDB[T, P]) QueryNoCacheCtx(ctx context.Context, result any, fn
 	return fn(ctx, result, cg.db)
 }
 func (cg *CacheGormDB[T, P]) QuerySafeSingleFromDB(ctx context.Context, key string, result any, queryFn QueryCtxFn, expire int) error {
+	defer func() {
+		logx.WithContext(ctx).Debugf("QuerySafeSingleFromDB  key:%v,result:%v", key, strext.ToJsonStr(result))
+	}()
 	val, err := cg.rdb.Get(ctx, key).Result()
 	if errors.Is(err, redis.Nil) {
 		err = nil
@@ -288,22 +302,26 @@ func (cg *CacheGormDB[T, P]) QuerySafeSingleFromDB(ctx context.Context, key stri
 		return gorm.ErrRecordNotFound
 	}
 	if val != "" {
+		logx.WithContext(ctx).Debugf("QuerySafeSingleFromDB->cache  key:%v,val:%v", key, val)
 		err = json.Unmarshal([]byte(val), result)
 		return err
 
 	}
 	redSync, err := red_lock.NewRedSync(cg.rdb)
 	if err != nil {
+		logx.WithContext(ctx).Debugf("QuerySafeSingleFromDB->NewRedSyncErr  key:%v,err:%v", key, err)
 		return err
 	}
 	locker, err := red_lock.NewLockWithRS(ctx, redSync, key)
 	if err != nil {
+		logx.WithContext(ctx).Debugf("QuerySafeSingleFromDB->NewLockWithRSRR  key:%v,err:%v", key, err)
 		return err
 	}
 	defer locker.Unlock()
 	for {
 		lock, err := locker.Lock()
 		if err != nil {
+			logx.WithContext(ctx).Debugf("QuerySafeSingleFromDB->locker.LockErr  key:%v,err:%v", key, err)
 			return err
 		}
 		if lock {
@@ -315,15 +333,18 @@ func (cg *CacheGormDB[T, P]) QuerySafeSingleFromDB(ctx context.Context, key stri
 				return gorm.ErrRecordNotFound
 			}
 			if val != "" {
+				logx.WithContext(ctx).Debugf("QuerySafeSingleFromDB->afterLocker-cache  key:%v,val:%v", key, val)
 				err = json.Unmarshal([]byte(val), result)
 				return err
 			}
 			err = queryFn(ctx, result, cg.db)
 			if err != nil {
+				logx.WithContext(ctx).Debugf("QuerySafeSingleFromDB->queryFnErr  key:%v,err:%v", key, err)
 				return err
 			}
 			resultBytes, err := json.Marshal(result)
 			if err != nil {
+				logx.WithContext(ctx).Debugf("QuerySafeSingleFromDB->json.Marsha  key:%v,jsonStr:%v,err:%v", key, string(resultBytes), err)
 				return err
 			}
 			isSet, err := cg.rdb.SetNX(ctx, key, string(resultBytes), genDuring(expire, cg.randSec)).Result()
@@ -339,7 +360,7 @@ func (cg *CacheGormDB[T, P]) QuerySafeSingleFromDB(ctx context.Context, key stri
 	}
 }
 func (cg *CacheGormDB[T, P]) QueryCtx(ctx context.Context, result any, key string, fn QueryCtxFn) error {
-	return cg.takeCtx(ctx, key, result, fn, func(result string, waitUpdate bool) error {
+	err := cg.takeCtx(ctx, key, result, fn, func(result string, waitUpdate bool) error {
 		if waitUpdate {
 			_, err := cg.rdb.Set(ctx, key, result, time.Second*2).Result()
 			return err
@@ -357,6 +378,9 @@ func (cg *CacheGormDB[T, P]) QueryCtx(ctx context.Context, result any, key strin
 		}
 
 	})
+	logx.WithContext(ctx).Debugf("QueryCtx   key:%v,result:%v,err:%v", key, strext.ToJsonStr(result), err)
+
+	return err
 }
 func (cg *CacheGormDB[T, P]) QuerySlicesCtxCustom(ctx context.Context, result *[]T, key string, queryDBFn QuerySlicesFn[T], queryCacheFn QueryCacheSlicesCtxFn) error {
 
@@ -448,6 +472,7 @@ func (cg *CacheGormDB[T, P]) QuerySlicesCtxCustom(ctx context.Context, result *[
 		return result, err
 
 	})
+	logx.WithContext(ctx).Debugf("QuerySlicesCtxCustom   key:%v,result:%v,err:%v", key, strext.ToJsonStr(result), err)
 	return err
 
 }
@@ -478,6 +503,7 @@ func (cg *CacheGormDB[T, P]) takeCtx(ctx context.Context, key string, result any
 		}
 		if val != "" {
 			err = json.Unmarshal([]byte(val), result)
+			logx.WithContext(ctx).Debugf("takeCtx->Cache   key:%v,result:%v,jsonStr:%v,err:%v", key, strext.ToJsonStr(result), val, err)
 			return result, err
 
 		}
@@ -495,6 +521,7 @@ func (cg *CacheGormDB[T, P]) takeCtx(ctx context.Context, key string, result any
 		}
 		resultBytes, err := json.Marshal(result)
 		if err != nil {
+			logx.WithContext(ctx).Debugf("takeCtx->jsonMarshalErr   key:%v,result:%v,jsonStr_val:%v,err:%v", key, strext.ToJsonStr(result), val, err)
 			return nil, err
 		}
 
@@ -506,6 +533,7 @@ func (cg *CacheGormDB[T, P]) takeCtx(ctx context.Context, key string, result any
 		}
 		err = cacheFn(string(resultBytes), isUpdating)
 		if err != nil {
+			logx.WithContext(ctx).Debugf("takeCtx->jsonMarshalErr   key:%v,result:%v,jsonStr_val:%v,err:%v", key, strext.ToJsonStr(result), val, err)
 			return nil, err
 		}
 		return result, nil
