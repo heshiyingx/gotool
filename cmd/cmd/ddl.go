@@ -14,7 +14,7 @@ var DDlCmd = newDdlCmd()
 func newDdlCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:                    "ddl",
-		Short:                  "解析ddl语句，生成db层代码",
+		Short:                  "解析ddl语句，生成gorm db层代码",
 		Example:                "",
 		ValidArgs:              nil,
 		ValidArgsFunction:      nil,

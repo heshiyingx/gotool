@@ -3,7 +3,6 @@ package util
 import (
 	"github.com/heshiyingx/gotool/util/console"
 	"strings"
-
 )
 
 var goKeyword = map[string]string{
@@ -83,9 +82,30 @@ func SafeString(in string) string {
 	}
 	return data
 }
+func SafeStringExcludeUnderline(in string) string {
+	if len(in) == 0 {
+		return in
+	}
+
+	data := strings.Map(func(r rune) rune {
+		if isSafeRuneExcludeUnderline(r) {
+			return r
+		}
+		return '_'
+	}, in)
+
+	headRune := rune(data[0])
+	if isNumber(headRune) {
+		return "_" + data
+	}
+	return data
+}
 
 func isSafeRune(r rune) bool {
 	return isLetter(r) || isNumber(r) || r == '_'
+}
+func isSafeRuneExcludeUnderline(r rune) bool {
+	return isLetter(r) || isNumber(r)
 }
 
 func isLetter(r rune) bool {
