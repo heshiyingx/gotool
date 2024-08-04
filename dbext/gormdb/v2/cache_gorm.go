@@ -143,7 +143,7 @@ func (cg *CacheGormDB) QuerySingleNoCacheCtx(ctx context.Context, key string, re
 
 // QueryNoCacheCtx 直接进行db查询
 func (cg *CacheGormDB) QueryNoCacheCtx(ctx context.Context, result any, queryDBFun QueryCtxFn) error {
-	err := queryDBFun(ctx, result, cg.db)
+	err := queryDBFun(ctx, result, cg.db.WithContext(ctx))
 	return err
 }
 
@@ -183,7 +183,7 @@ func (cg *CacheGormDB) takeCtx(ctx context.Context, key string, result any, quer
 
 	singleResult, err, share := cg.singleFlight.Do(key, func() (interface{}, error) {
 
-		err := query(ctx, result, cg.db)
+		err := query(ctx, result, cg.db.WithContext(ctx))
 		logx.WithContext(ctx).Debugf("takeCtx->queryFinish   key:%v,  result:%v,  err:%v", key, strext.ToJsonStr(result), err)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -232,7 +232,7 @@ func (cg *CacheGormDB) takeCacheCtx(ctx context.Context, key string, result any,
 
 		}
 
-		err = query(ctx, result, cg.db)
+		err = query(ctx, result, cg.db.WithContext(ctx))
 		logx.WithContext(ctx).Debugf("takeCacheCtx->queryFinish   key:%v  result:%v  err:%v", key, strext.ToJsonStr(result), err)
 
 		if err != nil {
@@ -318,7 +318,7 @@ func (cg *CacheGormDB) ExecCtx(ctx context.Context, execFn ExecCtxFn, keys ...st
 
 		}
 	}()
-	result, err := execFn(ctx, cg.db)
+	result, err := execFn(ctx, cg.db.WithContext(ctx))
 	if err != nil {
 		return 0, err
 	}
