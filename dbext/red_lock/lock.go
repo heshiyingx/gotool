@@ -8,13 +8,13 @@ import (
 	"github.com/go-redsync/redsync/v4/redis/goredis/v9"
 	"github.com/redis/go-redis/v9"
 	"log"
-	"sync/atomic"
+	"sync"
 	"time"
 )
 
 var (
 	pool          redsyncredis.Pool
-	defaultRS     *redsync.Redsync
+	defaultRS     *RedSync
 	timeOutDuring = time.Duration(30) * time.Second
 )
 
@@ -23,51 +23,59 @@ var (
 )
 
 type RedLock struct {
-	ticker  *time.Ticker
-	mutex   *redsync.Mutex
-	ctx     context.Context
-	endMark int32 //0 待lock,1请求locke 2上锁成功 3已释放锁 4:从已释放锁恢复到0的过程中 5:释放做过程中
-	endChan chan struct{}
+	ticker     *time.Ticker
+	mutex      *redsync.Mutex
+	innerMutex sync.Mutex
+	ctx        context.Context
+	lockerMark int32 //0 未上锁，1已上锁
+	endChan    chan struct{}
+}
+type RedSync struct {
+	redSync *redsync.Redsync
 }
 
-func MustInitRedLock(rdb redis.UniversalClient) *redsync.Redsync {
-	rs, err := InitRedLock(rdb)
+func (r *RedSync) NewMutex(ctx context.Context, name string) (*RedLock, error) {
+	mutex := r.redSync.NewMutex(name, redsync.WithExpiry(timeOutDuring), redsync.WithRetryDelay(time.Millisecond*500), redsync.WithTries(10))
+	return &RedLock{
+		ticker: time.NewTicker((timeOutDuring - time.Millisecond*100) / 3),
+		mutex:  mutex,
+		//endChan: make(chan struct{}, 2),
+		ctx: ctx,
+	}, nil
+}
+func MustInitRedLock(rdb redis.UniversalClient) {
+	err := InitRedLock(rdb)
 	if err != nil {
 		log.Fatalf("InitRedLock err:%v", err)
 	}
-	return rs
 
 }
-func InitRedLock(rdb redis.UniversalClient) (*redsync.Redsync, error) {
+func InitRedLock(rdb redis.UniversalClient) error {
 	_, err := rdb.Ping(context.Background()).Result()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	pool = goredis.NewPool(rdb) // or, pool := redigo.NewPool(...)
-	defaultRS = redsync.New(pool)
-	return defaultRS, nil
+	rs := redsync.New(pool)
+	defaultRS = &RedSync{redSync: rs}
+	return nil
 }
-func NewRedSync(rdb redis.UniversalClient) (*redsync.Redsync, error) {
+func NewRedSync(rdb redis.UniversalClient) (*RedSync, error) {
 	_, err := rdb.Ping(context.Background()).Result()
 	if err != nil {
 		return nil, err
 	}
 	pool = goredis.NewPool(rdb) // or, pool := redigo.NewPool(...)
 	rs := redsync.New(pool)
-	return rs, nil
+	return &RedSync{redSync: rs}, nil
 }
+
 func NewLock(ctx context.Context, name string) (*RedLock, error) {
 	if defaultRS == nil {
-		log.Fatalf("NewLock err:%v", "rs  is nil")
+		return nil, errors.New("defaultRS not init")
 	}
 
-	mutex := defaultRS.NewMutex(name, redsync.WithExpiry(timeOutDuring), redsync.WithRetryDelay(time.Millisecond*500), redsync.WithTries(10))
-	return &RedLock{
-		ticker:  time.NewTicker((timeOutDuring - time.Millisecond*100) / 3),
-		mutex:   mutex,
-		endChan: make(chan struct{}, 2),
-		ctx:     ctx,
-	}, nil
+	return defaultRS.NewMutex(ctx, name)
 }
 func NewLockWithRS(ctx context.Context, rs *redsync.Redsync, name string) (*RedLock, error) {
 	if rs == nil {
@@ -88,62 +96,73 @@ func NewLockWithRS(ctx context.Context, rs *redsync.Redsync, name string) (*RedL
 }
 func (l *RedLock) Lock() (bool, error) {
 
-	if atomic.CompareAndSwapInt32(&l.endMark, 3, 4) {
-		l.endChan = make(chan struct{}, 2)
-		l.ticker = time.NewTicker((timeOutDuring - time.Millisecond*100) / 3)
-		atomic.CompareAndSwapInt32(&l.endMark, 4, 0)
+	l.innerMutex.Lock()
+	defer l.innerMutex.Unlock()
+	if l.lockerMark == 1 {
+		return true, nil
 	}
-	ticker := l.ticker
-	if atomic.CompareAndSwapInt32(&l.endMark, 0, 1) {
-		err := l.mutex.LockContext(l.ctx)
-		if err != nil {
-			atomic.CompareAndSwapInt32(&l.endMark, 1, 0)
-			return false, err
-		} else {
-			if !atomic.CompareAndSwapInt32(&l.endMark, 1, 2) {
-				return false, nil
-			}
+	err := l.mutex.LockContext(l.ctx)
+	if err != nil {
+		var errTaken *redsync.ErrTaken
+		if errors.As(err, &errTaken) {
+			return false, nil
 		}
-		go func() {
+		return false, err
+	}
+	l.lockerMark = 1
+	if l.endChan != nil {
+		return false, errors.New("endChan has exists")
+	}
+	if l.ticker != nil {
+		l.ticker.Stop()
+	}
 
-			defer ticker.Stop()
-			for {
-				select {
-				case <-l.ctx.Done():
-					return
-				case <-ticker.C:
-					_, err = l.mutex.Extend()
-					if err != nil {
-						log.Printf("Extend err:%v", err)
-						return
-					}
-				case <-l.endChan:
+	l.ticker = time.NewTicker((timeOutDuring - time.Millisecond*100) / 3)
+	l.endChan = make(chan struct{}, 0)
+	go func() {
+		defer l.ticker.Stop()
+		for {
+			select {
+			case <-l.ctx.Done():
+				return
+			case <-l.ticker.C:
+				_, err = l.mutex.Extend()
+				if err != nil {
+					l.innerMutex.Lock()
+					defer l.innerMutex.Unlock()
+					l.lockerMark = 0
+					close(l.endChan)
+					log.Printf("Extend err:%v", err)
 					return
 				}
+			case <-l.endChan:
+				return
 			}
-		}()
-	}
+		}
+	}()
 
 	return true, nil
 
 }
 func (l *RedLock) Unlock() (bool, error) {
-	if atomic.CompareAndSwapInt32(&l.endMark, 2, 5) || atomic.CompareAndSwapInt32(&l.endMark, 1, 5) {
-		close(l.endChan)
-
-		unlock, err := l.mutex.Unlock()
-		if err != nil {
-			var errNodeTaken *redsync.ErrNodeTaken
-			var errTaken *redsync.ErrTaken
-			if errors.Is(err, redsync.ErrLockAlreadyExpired) || errors.As(err, &errNodeTaken) || errors.As(err, &errTaken) {
-				atomic.CompareAndSwapInt32(&l.endMark, 5, 3)
-				return true, nil
-			}
-			return unlock, err
-		}
-		atomic.CompareAndSwapInt32(&l.endMark, 5, 3)
-		return unlock, nil
+	l.innerMutex.Lock()
+	defer l.innerMutex.Unlock()
+	if l.lockerMark == 0 {
+		return true, nil
 	}
-	return false, nil
+	close(l.endChan)
+	l.endChan = nil
+	l.lockerMark = 0
+	unlock, err := l.mutex.Unlock()
+	if err != nil {
+		var errNodeTaken *redsync.ErrNodeTaken
+		var errTaken *redsync.ErrTaken
+		if errors.Is(err, redsync.ErrLockAlreadyExpired) || errors.As(err, &errNodeTaken) || errors.As(err, &errTaken) {
+			return true, nil
+		}
+		return unlock, err
+	}
+
+	return unlock, nil
 
 }

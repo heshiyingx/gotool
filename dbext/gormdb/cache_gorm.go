@@ -33,6 +33,7 @@ var TypeErr = errors.New("type is err")
 type (
 	CacheGormDB[T any, P int64 | uint64 | string] struct {
 		rdb               redis.UniversalClient
+		RedSync           *red_lock.RedSync
 		singleFlight      *singleflight.Group
 		notFoundExpireSec int
 		cacheExpireSec    int
@@ -75,6 +76,10 @@ func NewCacheGormDB[T any, P int64 | uint64 | string](c Config) (*CacheGormDB[T,
 	if err != nil {
 		return nil, err
 	}
+	redSync, err := red_lock.NewRedSync(c.Rdb)
+	if err != nil {
+		return nil, err
+	}
 	pool, err := ants.NewPool(runtime.NumCPU(), ants.WithExpiryDuration(time.Minute*5))
 	if err != nil {
 		return nil, err
@@ -82,6 +87,7 @@ func NewCacheGormDB[T any, P int64 | uint64 | string](c Config) (*CacheGormDB[T,
 	cacheGromDB := &CacheGormDB[T, P]{
 		rdb:               c.Rdb,
 		singleFlight:      &singleflight.Group{},
+		RedSync:           redSync,
 		notFoundExpireSec: c.NotFoundExpireSec,
 		cacheExpireSec:    c.CacheExpireSec,
 		randSec:           c.RandSec,
@@ -315,12 +321,8 @@ func (cg *CacheGormDB[T, P]) QuerySafeSingleFromDB(ctx context.Context, key stri
 		return err
 
 	}
-	redSync, err := red_lock.NewRedSync(cg.rdb)
-	if err != nil {
-		logx.WithContext(ctx).Debugf("QuerySafeSingleFromDB->NewRedSyncErr  key:%v,err:%v", key, err)
-		return err
-	}
-	locker, err := red_lock.NewLockWithRS(ctx, redSync, key)
+
+	locker, err := cg.RedSync.NewMutex(ctx, key)
 	if err != nil {
 		logx.WithContext(ctx).Debugf("QuerySafeSingleFromDB->NewLockWithRSRR  key:%v,err:%v", key, err)
 		return err
@@ -623,6 +625,9 @@ func (cg *CacheGormDB[T, P]) setCacheWithNotFound(ctx context.Context, key strin
 }
 func (cg *CacheGormDB[T, P]) GetRdb() redis.UniversalClient {
 	return cg.rdb
+}
+func (cg *CacheGormDB[T, P]) GetRedSync() *red_lock.RedSync {
+	return cg.RedSync
 }
 func genDuring(oriSec int, randSec int) time.Duration {
 	if oriSec == 0 {

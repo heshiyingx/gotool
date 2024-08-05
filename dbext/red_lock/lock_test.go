@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/redis/go-redis/v9"
 	"testing"
-	"time"
 )
 
 func TestMustInitRedLock(t *testing.T) {
@@ -20,16 +19,23 @@ func TestMustInitRedLock(t *testing.T) {
 	}
 	locked, err := locker.Lock()
 	if err != nil {
+		panic(err)
 		//return
 	}
 	locked, err = locker.Lock()
 	if err != nil {
+		panic(err)
 		//return
 	}
-	time.Sleep(time.Hour)
+	locked, err = locker.Lock()
+	if err != nil {
+		panic(err)
+		//return
+	}
+	//time.Sleep(time.Hour)
 	unlocked, err := locker.Unlock()
 	if err != nil {
-		return
+		panic(err)
 	}
 	t.Log(locked, unlocked)
 }
