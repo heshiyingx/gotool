@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/heshiyingx/gotool/dbext/red_lock"
 	"github.com/heshiyingx/gotool/dbext/redis_script"
 	"github.com/heshiyingx/gotool/strext"
 	"github.com/panjf2000/ants/v2"
@@ -33,6 +34,7 @@ type (
 	CacheGormDB struct {
 		rdb               redis.UniversalClient
 		singleFlight      *singleflight.Group
+		RedSync           *red_lock.RedSync
 		notFoundExpireSec int
 		cacheExpireSec    int
 		randSec           int
@@ -70,6 +72,10 @@ func NewCacheGormDB(c Config) (*CacheGormDB, error) {
 	if err != nil {
 		return nil, err
 	}
+	redSync, err := red_lock.NewRedSync(c.Rdb)
+	if err != nil {
+		return nil, err
+	}
 	pool, err := ants.NewPool(runtime.NumCPU(), ants.WithExpiryDuration(time.Minute*5))
 	if err != nil {
 		return nil, err
@@ -77,6 +83,7 @@ func NewCacheGormDB(c Config) (*CacheGormDB, error) {
 	cacheGromDB := &CacheGormDB{
 		rdb:               c.Rdb,
 		singleFlight:      &singleflight.Group{},
+		RedSync:           redSync,
 		notFoundExpireSec: c.NotFoundExpireSec,
 		cacheExpireSec:    c.CacheExpireSec,
 		randSec:           c.RandSec,
@@ -332,7 +339,71 @@ func (cg *CacheGormDB) ExecCtx(ctx context.Context, execFn ExecCtxFn, keys ...st
 
 	return result, nil
 }
+func (cg *CacheGormDB) QuerySafeSingleFromDB(ctx context.Context, key string, result any, queryFn QueryCtxFn, expire int) error {
+	defer func() {
+		logx.WithContext(ctx).Debugf("QuerySafeSingleFromDB  key:%v,result:%v", key, strext.ToJsonStr(result))
+	}()
+	val, err := cg.rdb.Get(ctx, key).Result()
+	if errors.Is(err, redis.Nil) {
+		err = nil
+	}
+	if val == notFoundPlaceholder {
+		return gorm.ErrRecordNotFound
+	}
+	if val != "" {
+		logx.WithContext(ctx).Debugf("QuerySafeSingleFromDB->cache  key:%v,val:%v", key, val)
+		err = json.Unmarshal([]byte(val), result)
+		return err
 
+	}
+
+	locker, err := cg.RedSync.NewMutex(ctx, key)
+	if err != nil {
+		logx.WithContext(ctx).Debugf("QuerySafeSingleFromDB->NewLockWithRSRR  key:%v,err:%v", key, err)
+		return err
+	}
+	defer locker.Unlock()
+	for {
+		lock, err := locker.Lock()
+		if err != nil {
+			logx.WithContext(ctx).Debugf("QuerySafeSingleFromDB->locker.LockErr  key:%v,err:%v", key, err)
+			return err
+		}
+		if lock {
+			val, err = cg.rdb.Get(ctx, key).Result()
+			if errors.Is(err, redis.Nil) {
+				err = nil
+			}
+			if val == notFoundPlaceholder {
+				return gorm.ErrRecordNotFound
+			}
+			if val != "" {
+				logx.WithContext(ctx).Debugf("QuerySafeSingleFromDB->afterLocker-cache  key:%v,val:%v", key, val)
+				err = json.Unmarshal([]byte(val), result)
+				return err
+			}
+			err = queryFn(ctx, result, cg.db)
+			if err != nil {
+				logx.WithContext(ctx).Debugf("QuerySafeSingleFromDB->queryFnErr  key:%v,err:%v", key, err)
+				return err
+			}
+			resultBytes, err := json.Marshal(result)
+			if err != nil {
+				logx.WithContext(ctx).Debugf("QuerySafeSingleFromDB->json.Marsha  key:%v,jsonStr:%v,err:%v", key, string(resultBytes), err)
+				return err
+			}
+			isSet, err := cg.rdb.SetNX(ctx, key, string(resultBytes), genDuring(expire, cg.randSec)).Result()
+			if err != nil {
+				return err
+			}
+			if !isSet {
+				_, err = cg.rdb.Set(ctx, key, string(resultBytes), time.Second*2).Result()
+				return err
+			}
+			return nil
+		}
+	}
+}
 func (cg *CacheGormDB) setCacheWithNotFound(ctx context.Context, key string) error {
 	expire := time.Second*time.Duration(cg.notFoundExpireSec) + genDuring(cg.randSec, cg.notFoundExpireSec)
 	_, err := cg.rdb.SetNX(ctx, key, notFoundPlaceholder, expire).Result()
