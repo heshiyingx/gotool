@@ -421,7 +421,6 @@ func (cg *CacheGormDB[T, P]) QuerySlicesCtxCustom(ctx context.Context, result *[
 					}
 					*result = append(*result, eObj)
 				}
-
 				return result, nil
 			}
 		} else if tString != "none" {
@@ -471,15 +470,14 @@ func (cg *CacheGormDB[T, P]) QuerySlicesCtxCustom(ctx context.Context, result *[
 			}
 		}
 		if isSuccess {
-			resBytes, err := json.Marshal(res)
-			if err != nil {
-				return nil, err
+			for _, ele := range res {
+				var eObj T
+				err = json.Unmarshal([]byte(ele), &eObj)
+				if err != nil {
+					return nil, err
+				}
+				*result = append(*result, eObj)
 			}
-			err = json.Unmarshal(resBytes, result)
-			if err != nil {
-				return nil, err
-			}
-			return result, nil
 		}
 		return result, err
 
