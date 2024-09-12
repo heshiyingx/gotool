@@ -9,7 +9,7 @@ var sf *sonyflake.Sonyflake
 
 func init() {
 	var st = sonyflake.Settings{
-		StartTime: time.Now(),
+		StartTime: time.Date(2024, 8, 1, 1, 1, 1, 0, time.UTC),
 	}
 	sf = sonyflake.NewSonyflake(st)
 }
