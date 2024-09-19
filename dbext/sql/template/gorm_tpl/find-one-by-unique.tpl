@@ -42,7 +42,7 @@ func (m *default{{.upperStartCamelObject}}Model) UpdateOneBy{{.upperField}}(ctx 
         return m.db.ExecCtx(ctx, func(ctx context.Context, db *gorm.DB) (int64, error) {
             upTx := db.WithContext(ctx).Model(&{{.upperStartCamelObject}}{}).Where("{{.pkNameWrap}}", data.Id)
             if len(fields) > 0 {
-                upTx = upTx.Select(strings.Join(fields, ",")).Updates(updateObj)
+                upTx = upTx.Select(fields).Updates(updateObj)
             }else {
                 upTx = upTx.Save(updateObj)
             }
@@ -54,7 +54,7 @@ func (m *default{{.upperStartCamelObject}}Model) UpdateOneBy{{.upperField}}(ctx 
     return m.db.ExecCtx(ctx, func(ctx context.Context, db *gorm.DB) (int64, error) {
         upTx := db.WithContext(ctx).Model(&{{.upperStartCamelObject}}{}).Where("{{.originalField}}", {{.lowerStartCamelField}})
         if len(fields) > 0 {
-            upTx = upTx.Select(strings.Join(fields, ",")).Updates(updateObj)
+            upTx = upTx.Select(fields).Updates(updateObj)
         } else {
             upTx = upTx.Save(updateObj)
         }
