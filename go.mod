@@ -25,7 +25,7 @@ require (
 )
 
 require (
-	github.com/apache/rocketmq-clients/golang v0.0.0-20230321063829-41bfbcf6130d
+	github.com/apache/rocketmq-clients/golang/v5 v5.1.1-rc1.0.20240925022751-51fcf33e9dd8
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-redsync/redsync/v4 v4.12.1
 	github.com/jinzhu/now v1.1.5
