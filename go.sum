@@ -725,6 +725,8 @@ github.com/apache/arrow/go/v10 v10.0.1/go.mod h1:YvhnlEePVnBS4+0z3fhPfUy7W1Ikj0I
 github.com/apache/arrow/go/v11 v11.0.0/go.mod h1:Eg5OsL5H+e299f7u5ssuXsuHQVEGC4xei5aX110hRiI=
 github.com/apache/rocketmq-clients/golang v0.0.0-20230321063829-41bfbcf6130d h1:SXJbQMSHwzqTToLMWobasX0sNJcSPmDAMNuoaWSCYIE=
 github.com/apache/rocketmq-clients/golang v0.0.0-20230321063829-41bfbcf6130d/go.mod h1:wtbEvUkAKHlc3h4FU8AZw0w+plDI8kGtmSPNAPGQahw=
+github.com/apache/rocketmq-clients/golang/v5 v5.1.1-rc1.0.20240925022751-51fcf33e9dd8 h1:+tgdkItZzrPGn6ob8x6SKaE9uKZG6iwj5j6ScnVdDQM=
+github.com/apache/rocketmq-clients/golang/v5 v5.1.1-rc1.0.20240925022751-51fcf33e9dd8/go.mod h1:7/YwUJ8EDlOciZNLJlUMKSDjfP8rWiaLs7yYIBq7YQY=
 github.com/apache/thrift v0.16.0/go.mod h1:PHK3hniurgQaNMZYaCLEqXKsYK8upmhPbmdP2FXSqgU=
 github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e/go.mod h1:3U/XgcO3hCbHZ8TKRvWD2dDTCfh9M9ya+I9JpbB7O8o=
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=

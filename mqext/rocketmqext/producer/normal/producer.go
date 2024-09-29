@@ -1,8 +1,8 @@
 package normal
 
 import (
-	"github.com/apache/rocketmq-clients/golang"
-	"github.com/apache/rocketmq-clients/golang/credentials"
+	"github.com/apache/rocketmq-clients/golang/v5"
+	"github.com/apache/rocketmq-clients/golang/v5/credentials"
 )
 
 type ProducerConfig struct {
